@@ -154,9 +154,9 @@ async def test_scheduler_alerts_cooldown_and_digest_delivery() -> None:
         # 1. First tick triggers alert + digest
         await scheduler.tick_once()
         assert len(telegram_messages) == 2
-        assert "[ALPHA ALERT] BITCOIN" in telegram_messages[0]
-        assert DISCLAIMER in telegram_messages[0]
-        assert "ALPHA INTELLIGENCE REPORT" in telegram_messages[1]
+        assert "ALPHA ALERT — BITCOIN" in telegram_messages[0]
+        assert DISCLAIMER.strip("*") in telegram_messages[0]
+        assert "ALPHA INTELLIGENCE BRIEF" in telegram_messages[1]
 
         # 2. Second tick 10 minutes later suppresses both due to cooldown & interval
         clock.advance(600.0)
