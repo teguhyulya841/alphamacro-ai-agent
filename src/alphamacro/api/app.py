@@ -37,6 +37,8 @@ from alphamacro.exceptions import (
 from alphamacro.infra.state import StateBundle, build_state
 from alphamacro.models import (
     AgentResult,
+    AlertEvent,
+    AlertRule,
     ConfidenceReport,
     CrossValidationReport,
     GroundingReport,
@@ -186,8 +188,9 @@ def create_app(
     *,
     market_client: Any | None = None,
     state_bundle: StateBundle | None = None,
+    scheduler: Any | None = None,
 ) -> FastAPI:
-    """Build the async FastAPI application with injected engine and state ports."""
+    """Build the async FastAPI application with injected engine, state & scheduler."""
     app = FastAPI(
         title="AlphaMacro-Crypto API",
         version=__version__,
@@ -340,6 +343,49 @@ def create_app(
             "indicators": snapshot,
             "disclaimer": _PLAIN_DISCLAIMER,
         }
+
+    @app.get("/v1/alerts", response_model=list[AlertRule], tags=["alerts"])
+    async def list_alerts(request: Request, caller: Caller) -> list[AlertRule]:
+        if scheduler is None:
+            raise _error(
+                503, "unavailable", "Alert scheduler tidak aktif.", request.state.request_id
+            )
+        return scheduler.list_rules()
+
+    @app.post("/v1/alerts", response_model=AlertRule, tags=["alerts"])
+    async def upsert_alert(
+        rule: AlertRule, request: Request, caller: Caller
+    ) -> AlertRule:
+        if scheduler is None:
+            raise _error(
+                503, "unavailable", "Alert scheduler tidak aktif.", request.state.request_id
+            )
+        return scheduler.upsert_rule(rule)
+
+    @app.delete("/v1/alerts/{rule_id}", tags=["alerts"])
+    async def delete_alert(
+        rule_id: str, request: Request, caller: Caller
+    ) -> dict[str, Any]:
+        if scheduler is None:
+            raise _error(
+                503, "unavailable", "Alert scheduler tidak aktif.", request.state.request_id
+            )
+        removed = scheduler.remove_rule(rule_id)
+        if not removed:
+            raise _error(
+                404, "alert_not_found", "Rule alert tidak ditemukan.", request.state.request_id
+            )
+        return {"deleted": True, "rule_id": rule_id}
+
+    @app.post("/v1/alerts/check", response_model=list[AlertEvent], tags=["alerts"])
+    async def trigger_alert_check(
+        request: Request, caller: Caller
+    ) -> list[AlertEvent]:
+        if scheduler is None:
+            raise _error(
+                503, "unavailable", "Alert scheduler tidak aktif.", request.state.request_id
+            )
+        return await scheduler.run_alert_check()
 
     @app.exception_handler(Exception)
     async def unhandled(request: Request, exc: Exception) -> Response:  # noqa: ARG001

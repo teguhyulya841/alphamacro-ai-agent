@@ -61,6 +61,16 @@ class ConfidenceLevel(StrEnum):
     LOW = "LOW"
 
 
+class AlertOperator(StrEnum):
+    PRICE_GT = "price_gt"
+    PRICE_LT = "price_lt"
+    CHANGE_24H_GT = "change_24h_gt"
+    CHANGE_24H_LT = "change_24h_lt"
+    RSI_GT = "rsi_gt"
+    RSI_LT = "rsi_lt"
+    SPREAD_GT = "spread_gt"
+
+
 class FreshnessPolicy(Frozen):
     fresh_ttl_s: PositiveInt
     stale_ttl_s: PositiveInt
@@ -193,6 +203,52 @@ class ConfidenceReport(Frozen):
     stale_observations: int = Field(default=0, ge=0)
     max_age_s: float = Field(default=0.0, ge=0.0)
     reasons: list[str] = Field(default_factory=list)
+
+
+class AlertRule(Frozen):
+    """Deterministic threshold rule evaluated against market/indicator snapshots."""
+
+    rule_id: str = Field(min_length=1, max_length=64, pattern=r"^[A-Za-z0-9._-]+$")
+    coin_id: CoinId
+    operator: AlertOperator
+    threshold: float
+    cooldown_s: PositiveInt = 3600
+    enabled: bool = True
+    label: str = ""
+
+
+class AlertEvent(Frozen):
+    """Emitted when an AlertRule condition is satisfied."""
+
+    rule_id: str
+    coin_id: str
+    operator: AlertOperator
+    threshold: float
+    observed_value: float
+    triggered_at: AwareDatetime
+    summary: str
+    cross_validation: CrossValidationReport | None = None
+
+
+class DigestSchedule(Frozen):
+    """Configuration for periodic automated research digest runs."""
+
+    digest_id: str = Field(
+        default="daily-digest", min_length=1, max_length=64, pattern=r"^[A-Za-z0-9._-]+$"
+    )
+    query: str = Field(min_length=3, max_length=2000)
+    interval_s: PositiveInt = 86400
+    enabled: bool = True
+
+
+class DeliveryReceipt(Frozen):
+    """Audit record of an outbound notification delivery attempt."""
+
+    channel: str
+    target: str
+    delivered: bool
+    chunks_sent: int = Field(default=0, ge=0)
+    error: str | None = None
 
 
 class RouteQuery(BaseModel):
@@ -350,9 +406,12 @@ class AgentResult(BaseModel):
             parts += ["", "## Validasi Silang Multi-Venue"]
             for cv in self.cross_validations:
                 status = "KONSISTEN" if cv.is_consistent else "DIVERGEN"
-                venues = ", ".join(
-                    f"{q.venue} (${q.price_usd:,.2f})" for q in cv.quotes
-                ) or "tidak ada venue sekunder"
+                venues = (
+                    ", ".join(
+                        f"{q.venue} (${q.price_usd:,.2f})" for q in cv.quotes
+                    )
+                    or "tidak ada venue sekunder"
+                )
                 parts.append(
                     f"- **{cv.coin_id}**: {status} | Ref ({cv.reference_venue}): "
                     f"${cv.reference_price_usd:,.2f} | Konsensus: "
