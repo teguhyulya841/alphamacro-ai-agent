@@ -61,7 +61,9 @@ def evaluate_alert_rule(
                 if op is AlertOperator.PRICE_GT
                 else observed < rule.threshold
             )
-            direction = "menembus di atas" if op is AlertOperator.PRICE_GT else "turun di bawah"
+            direction = (
+                "menembus di atas" if op is AlertOperator.PRICE_GT else "turun di bawah"
+            )
             summary = (
                 f"Harga {rule.coin_id} (${observed:,.2f}) {direction} "
                 f"ambang ${rule.threshold:,.2f}."
@@ -75,7 +77,11 @@ def evaluate_alert_rule(
                 if op is AlertOperator.CHANGE_24H_GT
                 else observed < rule.threshold
             )
-            direction = "naik melebihi" if op is AlertOperator.CHANGE_24H_GT else "turun di bawah"
+            direction = (
+                "naik melebihi"
+                if op is AlertOperator.CHANGE_24H_GT
+                else "turun di bawah"
+            )
             summary = (
                 f"Perubahan 24H {rule.coin_id} ({observed:+.2f}%) {direction} "
                 f"{rule.threshold:+.2f}%."
@@ -196,9 +202,7 @@ class ResearchScheduler:
 
     # -- alert & digest execution -----------------------------------------
 
-    async def run_alert_check(
-        self, *, chat_id: str | None = None
-    ) -> list[AlertEvent]:
+    async def run_alert_check(self, *, chat_id: str | None = None) -> list[AlertEvent]:
         """Evaluate all enabled rules once and deliver triggered alerts."""
         active_rules = [r for r in self._rules.values() if r.enabled]
         if not active_rules:

@@ -81,7 +81,8 @@ def test_secret_in_query_never_reaches_the_agent(settings):
 
 def test_pii_is_redacted_before_agent_and_flagged(settings):
     engine, agent = engine_with(
-        settings, [msg("tool", MARKET_OUTPUT, "get_crypto_market_data"), msg("ai", "ok")]
+        settings,
+        [msg("tool", MARKET_OUTPUT, "get_crypto_market_data"), msg("ai", "ok")],
     )
     result = engine.run("email saya a@b.com, harga btc?")
     assert "a@b.com" not in agent.seen["messages"][0]["content"]
@@ -92,7 +93,9 @@ def test_pii_is_redacted_before_agent_and_flagged(settings):
 def test_audit_trail_records_ok_blocked_and_error(settings, tmp_path):
     log = AuditLog(tmp_path / "audit.jsonl", salt="salt-value-123")
     engine, _ = engine_with(
-        settings, [msg("tool", MARKET_OUTPUT, "get_crypto_market_data"), msg("ai", "ok")], audit=log
+        settings,
+        [msg("tool", MARKET_OUTPUT, "get_crypto_market_data"), msg("ai", "ok")],
+        audit=log,
     )
     engine.run("harga btc", user_id=42, channel="telegram", request_id="req-ok")
     with pytest.raises(PolicyViolationError):
@@ -102,13 +105,16 @@ def test_audit_trail_records_ok_blocked_and_error(settings, tmp_path):
         broken.run("harga btc")
 
     lines = [
-        __import__("json").loads(x) for x in (tmp_path / "audit.jsonl").read_text().splitlines()
+        __import__("json").loads(x)
+        for x in (tmp_path / "audit.jsonl").read_text().splitlines()
     ]
     assert [r["status"] for r in lines] == ["ok", "blocked", "error"]
     ok, blocked, _ = lines
     assert ok["request_id"] == "req-ok" and ok["channel"] == "telegram"
     assert ok["user"] == log.pseudonymize(42) and ok["user"] != "42"
-    assert "query" not in ok and len(ok["query_sha256"]) == 64  # text not stored by default
+    assert (
+        "query" not in ok and len(ok["query_sha256"]) == 64
+    )  # text not stored by default
     assert "query_sha256" not in blocked  # a blocked secret is never hashed or stored
     assert AuditLog.verify(tmp_path / "audit.jsonl").ok
 
@@ -117,7 +123,9 @@ def test_audit_can_store_redacted_query_text_when_enabled(settings, tmp_path):
     log = AuditLog(tmp_path / "a.jsonl", salt="salt-value-123", store_query_text=True)
     engine, _ = engine_with(settings, [msg("ai", "ok")], audit=log)
     engine.run("kontak a@b.com tentang btc")
-    record = __import__("json").loads((tmp_path / "a.jsonl").read_text().splitlines()[0])
+    record = __import__("json").loads(
+        (tmp_path / "a.jsonl").read_text().splitlines()[0]
+    )
     assert "[EMAIL]" in record["query"] and "a@b.com" not in record["query"]
 
 

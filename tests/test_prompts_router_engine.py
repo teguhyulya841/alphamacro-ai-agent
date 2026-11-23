@@ -48,12 +48,16 @@ def test_router_falls_back(llm):
 
 # ---- models ----------------------------------------------------------
 def test_render_includes_sources_disclaimer_and_optional_header():
-    result = AgentResult("q", "MACRO", "r", "now", "isi", sources=[Source("A", "https://a.com")])
+    result = AgentResult(
+        "q", "MACRO", "r", "now", "isi", sources=[Source("A", "https://a.com")]
+    )
     full = result.render_markdown()
     assert "# ALPHA INTELLIGENCE REPORT" in full
     assert "https://a.com" in full
     assert "bukan merupakan nasihat investasi" in full
-    assert "ALPHA INTELLIGENCE REPORT" not in result.render_markdown(include_header=False)
+    assert "ALPHA INTELLIGENCE REPORT" not in result.render_markdown(
+        include_header=False
+    )
 
 
 # ---- engine ----------------------------------------------------------
@@ -93,7 +97,10 @@ def make_engine(settings, messages=None, agent_error=None):
 def test_engine_happy_path(settings):
     engine, agent = make_engine(
         settings,
-        [msg("tool", "CRYPTO MARKET DATA", "get_crypto_market_data"), msg("ai", "BTC naik")],
+        [
+            msg("tool", "CRYPTO MARKET DATA", "get_crypto_market_data"),
+            msg("ai", "BTC naik"),
+        ],
     )
     result = engine.run("  harga btc  ")
     assert result.report == "BTC naik"

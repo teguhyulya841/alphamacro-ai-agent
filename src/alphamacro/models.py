@@ -234,7 +234,10 @@ class DigestSchedule(Frozen):
     """Configuration for periodic automated research digest runs."""
 
     digest_id: str = Field(
-        default="daily-digest", min_length=1, max_length=64, pattern=r"^[A-Za-z0-9._-]+$"
+        default="daily-digest",
+        min_length=1,
+        max_length=64,
+        pattern=r"^[A-Za-z0-9._-]+$",
     )
     query: str = Field(min_length=3, max_length=2000)
     interval_s: PositiveInt = 86400
@@ -264,9 +267,7 @@ class Source(Frozen):
     title: str
     url: str
 
-    def __init__(
-        self, title: str = _UNSET, url: str = _UNSET, **data: Any
-    ) -> None:
+    def __init__(self, title: str = _UNSET, url: str = _UNSET, **data: Any) -> None:
         if title is not _UNSET:
             data.setdefault("title", title)
         if url is not _UNSET:
@@ -278,12 +279,8 @@ class GroundingReport(Frozen):
     """How many numbers in the report were found in tool output (heuristic)."""
 
     total: int = Field(description="Number of checkable numbers found in the report.")
-    verified: int = Field(
-        description="How many matched tool output (within rounding)."
-    )
-    score: float | None = Field(
-        description="verified / total, or null if no numbers."
-    )
+    verified: int = Field(description="How many matched tool output (within rounding).")
+    score: float | None = Field(description="verified / total, or null if no numbers.")
     ungrounded: list[str] = Field(
         default_factory=list,
         description="Numbers that could not be verified.",
@@ -407,9 +404,7 @@ class AgentResult(BaseModel):
             for cv in self.cross_validations:
                 status = "KONSISTEN" if cv.is_consistent else "DIVERGEN"
                 venues = (
-                    ", ".join(
-                        f"{q.venue} (${q.price_usd:,.2f})" for q in cv.quotes
-                    )
+                    ", ".join(f"{q.venue} (${q.price_usd:,.2f})" for q in cv.quotes)
                     or "tidak ada venue sekunder"
                 )
                 parts.append(

@@ -31,9 +31,7 @@ class StateBundle:
     locks: LockManager
 
 
-def build_state(
-    settings: StateSettings, *, clock: Clock | None = None
-) -> StateBundle:
+def build_state(settings: StateSettings, *, clock: Clock | None = None) -> StateBundle:
     """Instantiate the configured state adapters behind domain ports."""
     active_clock: Clock = clock if clock is not None else SystemClock()
 

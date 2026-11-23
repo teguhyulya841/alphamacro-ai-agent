@@ -24,8 +24,12 @@ class IntentRouter:
         try:
             result = self._llm.invoke([("system", ROUTER_PROMPT), ("human", query)])
             if not isinstance(result, RouteQuery):
-                raise TypeError(f"Router output has wrong type: {type(result).__name__}")
-            logger.info("Router -> %s (%.2fs)", result.category, time.perf_counter() - started)
+                raise TypeError(
+                    f"Router output has wrong type: {type(result).__name__}"
+                )
+            logger.info(
+                "Router -> %s (%.2fs)", result.category, time.perf_counter() - started
+            )
             return result
         except Exception as exc:
             logger.warning(

@@ -27,7 +27,10 @@ def verify_key(provided: str | None, hashes: Mapping[str, str]) -> str | None:
         return None
     digest = hash_key(provided)
     found: str | None = None
-    for name, stored in hashes.items():  # no early exit: timing does not reveal which key matched
+    for (
+        name,
+        stored,
+    ) in hashes.items():  # no early exit: timing does not reveal which key matched
         if hmac.compare_digest(digest, stored):
             found = name
     return found
@@ -36,7 +39,9 @@ def verify_key(provided: str | None, hashes: Mapping[str, str]) -> str | None:
 def keygen_main(argv: Sequence[str] | None = None) -> int:
     import argparse
 
-    parser = argparse.ArgumentParser(prog="alphamacro-keygen", description="Create an API key.")
+    parser = argparse.ArgumentParser(
+        prog="alphamacro-keygen", description="Create an API key."
+    )
     parser.add_argument("name", help="Label for the key owner, e.g. 'acme-research'.")
     args = parser.parse_args(argv)
     if ":" in args.name or "," in args.name:

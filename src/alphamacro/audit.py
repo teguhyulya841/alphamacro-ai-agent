@@ -26,7 +26,9 @@ GENESIS_HASH = "0" * 64
 
 def _digest(record: Mapping[str, Any]) -> str:
     body = {k: v for k, v in record.items() if k != "hash"}
-    canonical = json.dumps(body, sort_keys=True, ensure_ascii=False, separators=(",", ":"))
+    canonical = json.dumps(
+        body, sort_keys=True, ensure_ascii=False, separators=(",", ":")
+    )
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 
@@ -45,7 +47,9 @@ class VerifyResult:
 class AuditLog:
     """Append-only, thread-safe audit trail."""
 
-    def __init__(self, path: str | Path, *, salt: str, store_query_text: bool = False) -> None:
+    def __init__(
+        self, path: str | Path, *, salt: str, store_query_text: bool = False
+    ) -> None:
         self._path = Path(path)
         self._path.parent.mkdir(parents=True, exist_ok=True)
         self._salt = salt.encode("utf-8")
@@ -59,7 +63,9 @@ class AuditLog:
 
     def pseudonymize(self, user_id: int | str) -> str:
         """Stable, non-reversible user reference (HMAC-SHA256 with a secret salt)."""
-        return hmac.new(self._salt, str(user_id).encode("utf-8"), hashlib.sha256).hexdigest()[:16]
+        return hmac.new(
+            self._salt, str(user_id).encode("utf-8"), hashlib.sha256
+        ).hexdigest()[:16]
 
     def record(self, event: Mapping[str, Any]) -> dict[str, Any]:
         with self._lock:
@@ -70,7 +76,9 @@ class AuditLog:
                 "prev_hash": self._prev,
             }
             record["hash"] = _digest(record)
-            line = json.dumps(record, sort_keys=True, ensure_ascii=False, separators=(",", ":"))
+            line = json.dumps(
+                record, sort_keys=True, ensure_ascii=False, separators=(",", ":")
+            )
             with self._path.open("a", encoding="utf-8") as fh:
                 fh.write(line + "\n")
                 fh.flush()
@@ -91,29 +99,45 @@ class AuditLog:
                 try:
                     record = json.loads(line)
                 except json.JSONDecodeError:
-                    return VerifyResult(False, count, prev, f"line {line_no}: invalid JSON")
+                    return VerifyResult(
+                        False, count, prev, f"line {line_no}: invalid JSON"
+                    )
                 if record.get("seq") != count + 1:
-                    return VerifyResult(False, count, prev, f"line {line_no}: sequence gap")
+                    return VerifyResult(
+                        False, count, prev, f"line {line_no}: sequence gap"
+                    )
                 if record.get("prev_hash") != prev:
-                    return VerifyResult(False, count, prev, f"line {line_no}: chain broken")
+                    return VerifyResult(
+                        False, count, prev, f"line {line_no}: chain broken"
+                    )
                 if record.get("hash") != _digest(record):
-                    return VerifyResult(False, count, prev, f"line {line_no}: record modified")
+                    return VerifyResult(
+                        False, count, prev, f"line {line_no}: record modified"
+                    )
                 prev, count = record["hash"], count + 1
         return VerifyResult(True, count, prev)
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(prog="alphamacro-audit", description="Audit log tools.")
+    parser = argparse.ArgumentParser(
+        prog="alphamacro-audit", description="Audit log tools."
+    )
     sub = parser.add_subparsers(dest="command", required=True)
-    verify = sub.add_parser("verify", help="Verify the hash chain of an audit log file.")
+    verify = sub.add_parser(
+        "verify", help="Verify the hash chain of an audit log file."
+    )
     verify.add_argument("path")
     args = parser.parse_args(argv)
 
     result = AuditLog.verify(args.path)
     if result.ok:
-        print(f"OK: {result.records} records. Head hash (anchor this): {result.head_hash}")
+        print(
+            f"OK: {result.records} records. Head hash (anchor this): {result.head_hash}"
+        )
         return 0
-    print(f"FAILED after {result.records} valid records: {result.error}", file=sys.stderr)
+    print(
+        f"FAILED after {result.records} valid records: {result.error}", file=sys.stderr
+    )
     return 1
 
 

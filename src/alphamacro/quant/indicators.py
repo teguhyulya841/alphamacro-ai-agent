@@ -131,7 +131,10 @@ def true_ranges(
 
 
 def atr(
-    highs: Sequence[float], lows: Sequence[float], closes: Sequence[float], period: int = 14
+    highs: Sequence[float],
+    lows: Sequence[float],
+    closes: Sequence[float],
+    period: int = 14,
 ) -> Series:
     """Average True Range with Wilder smoothing."""
     _check_period(period)
@@ -157,9 +160,13 @@ def swing_points(
     swing_highs: list[float] = []
     swing_lows: list[float] = []
     for i in range(window, len(highs) - window):
-        if highs[i] > max(highs[i - window : i]) and highs[i] >= max(highs[i + 1 : i + window + 1]):
+        if highs[i] > max(highs[i - window : i]) and highs[i] >= max(
+            highs[i + 1 : i + window + 1]
+        ):
             swing_highs.append(highs[i])
-        if lows[i] < min(lows[i - window : i]) and lows[i] <= min(lows[i + 1 : i + window + 1]):
+        if lows[i] < min(lows[i - window : i]) and lows[i] <= min(
+            lows[i + 1 : i + window + 1]
+        ):
             swing_lows.append(lows[i])
     return swing_highs, swing_lows
 
@@ -170,7 +177,10 @@ def nearest_levels(
     """Return ``(nearest_support_below, nearest_resistance_above)`` among swing points."""
     supports = [x for x in swing_lows if x < price]
     resistances = [x for x in swing_highs if x > price]
-    return (max(supports) if supports else None, min(resistances) if resistances else None)
+    return (
+        max(supports) if supports else None,
+        min(resistances) if resistances else None,
+    )
 
 
 def realized_volatility(closes: Sequence[float], periods_per_year: int) -> float | None:

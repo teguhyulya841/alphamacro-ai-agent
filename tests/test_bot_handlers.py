@@ -20,7 +20,11 @@ class FakeBot:
         self._fail_html_once = fail_html_once
 
     def send_message(self, chat_id, text, **kwargs):
-        if self._fail_html_once and kwargs.get("parse_mode") == "HTML" and "<b>" in text:
+        if (
+            self._fail_html_once
+            and kwargs.get("parse_mode") == "HTML"
+            and "<b>" in text
+        ):
             self._fail_html_once = False
             raise ApiTelegramException(
                 "sendMessage", None,
@@ -61,7 +65,9 @@ def make_message(text="harga btc", user_id=42, chat_type="private"):
 
 def controller(engine=None, bot=None, allowed=frozenset(), rate=5):
     settings = BotSettings(
-        telegram_token="x", allowed_user_ids=frozenset(allowed), rate_limit_per_minute=rate
+        telegram_token="x",
+        allowed_user_ids=frozenset(allowed),
+        rate_limit_per_minute=rate,
     )
     bot = bot or FakeBot()
     engine = engine or FakeEngine()
@@ -89,7 +95,9 @@ def test_success_flow_sends_html_and_cleans_placeholder():
 
 
 def test_internal_errors_are_not_leaked():
-    ctrl, bot, _ = controller(engine=FakeEngine(error=RuntimeError("api_key=SECRET123")))
+    ctrl, bot, _ = controller(
+        engine=FakeEngine(error=RuntimeError("api_key=SECRET123"))
+    )
     ctrl.on_text(make_message())
     message = texts(bot)[-1]
     assert "SECRET123" not in message
@@ -98,7 +106,9 @@ def test_internal_errors_are_not_leaked():
 
 
 def test_invalid_query_message_is_shown():
-    ctrl, bot, _ = controller(engine=FakeEngine(error=InvalidQueryError("Pertanyaan kosong <x>")))
+    ctrl, bot, _ = controller(
+        engine=FakeEngine(error=InvalidQueryError("Pertanyaan kosong <x>"))
+    )
     ctrl.on_text(make_message())
     assert "Pertanyaan kosong &lt;x&gt;" in texts(bot)[-1]
 

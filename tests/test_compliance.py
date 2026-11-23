@@ -47,7 +47,10 @@ def test_pii_is_redacted():
 
 
 def test_non_luhn_long_number_is_not_treated_as_card():
-    assert "[KARTU]" not in scan_input("angka 1234 5678 9012 3456 bukan kartu").redacted_query
+    assert (
+        "[KARTU]"
+        not in scan_input("angka 1234 5678 9012 3456 bukan kartu").redacted_query
+    )
 
 
 def test_prompt_injection_is_flagged_not_blocked():

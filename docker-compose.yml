@@ -1,29 +1,78 @@
 services:
-  bot:
-    build: .
-    command: ["alphamacro-bot"]
-    env_file: .env
-    restart: unless-stopped
-    read_only: true
-    security_opt:
-      - no-new-privileges:true
+  redis:
+    image: redis:7-alpine
+    container_name: alphamacro-redis
+    command: >
+      redis-server
+      --appendonly yes
+      --maxmemory 256mb
+      --maxmemory-policy allkeys-lru
     volumes:
-      - audit:/app/audit
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
 
   api:
-    build: .
-    command: ["alphamacro-api"]
-    env_file: .env
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: alphamacro-api
+    env_file:
+      - .env
     environment:
-      API_HOST: "0.0.0.0"   # inside the container; the port is published on localhost only
+      STATE_BACKEND: redis
+      REDIS_URL: redis://redis:6379/0
+      LOG_FORMAT: json
+    command: >
+      uvicorn alphamacro.api.main:app
+      --host 0.0.0.0
+      --port 8000
+      --workers 2
     ports:
-      - "127.0.0.1:8000:8000"
-    restart: unless-stopped
-    read_only: true
-    security_opt:
-      - no-new-privileges:true
+      - "8000:8000"
     volumes:
-      - audit:/app/audit
+      - ./logs:/app/logs
+      - ./data:/app/data
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://localhost:8000/healthz', timeout=3)",
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+
+  scheduler:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: alphamacro-scheduler
+    env_file:
+      - .env
+    environment:
+      STATE_BACKEND: redis
+      REDIS_URL: redis://redis:6379/0
+      LOG_FORMAT: json
+    command: ["python", "-m", "alphamacro.worker"]
+    volumes:
+      - ./logs:/app/logs
+      - ./data:/app/data
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
 
 volumes:
-  audit:
+  redis_data:

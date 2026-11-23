@@ -55,7 +55,9 @@ def test_refuses_to_open_corrupted_log(tmp_path):
     log = make_log(tmp_path)
     log.record({"request_id": "r1"})
     path = tmp_path / "a" / "audit.jsonl"
-    path.write_text(path.read_text(encoding="utf-8").replace("r1", "rX"), encoding="utf-8")
+    path.write_text(
+        path.read_text(encoding="utf-8").replace("r1", "rX"), encoding="utf-8"
+    )
     with pytest.raises(ValueError):
         make_log(tmp_path)
 

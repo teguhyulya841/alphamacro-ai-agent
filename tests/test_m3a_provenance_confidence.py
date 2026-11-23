@@ -30,7 +30,9 @@ from alphamacro.tools.coingecko import (
 )
 
 
-async def test_market_tool_emits_observation_and_downgrades_confidence_on_stale() -> None:
+async def test_market_tool_emits_observation_and_downgrades_confidence_on_stale() -> (
+    None
+):
     clock = FrozenClock(datetime(2026, 6, 1, 12, 0, tzinfo=UTC))
     bundle = build_state(StateSettings(backend=StateBackend.MEMORY), clock=clock)
     policy = FreshnessPolicy(fresh_ttl_s=60, stale_ttl_s=600)
@@ -77,7 +79,12 @@ async def test_market_tool_emits_observation_and_downgrades_confidence_on_stale(
     try:
         # 1. Fresh invocation produces Observation artifact with FRESH status
         fresh_msg = await tool.ainvoke(
-            {"name": MARKET_TOOL_NAME, "args": {"coin_id": "bitcoin"}, "id": "call-1", "type": "tool_call"}
+            {
+                "name": MARKET_TOOL_NAME,
+                "args": {"coin_id": "bitcoin"},
+                "id": "call-1",
+                "type": "tool_call",
+            }
         )
         assert isinstance(fresh_msg, ToolMessage)
         assert isinstance(fresh_msg.artifact, Observation)
@@ -88,7 +95,12 @@ async def test_market_tool_emits_observation_and_downgrades_confidence_on_stale(
         clock.advance(180.0)
         fail_upstream = True
         stale_msg = await tool.ainvoke(
-            {"name": MARKET_TOOL_NAME, "args": {"coin_id": "bitcoin"}, "id": "call-2", "type": "tool_call"}
+            {
+                "name": MARKET_TOOL_NAME,
+                "args": {"coin_id": "bitcoin"},
+                "id": "call-2",
+                "type": "tool_call",
+            }
         )
         await feed.aclose()
         assert isinstance(stale_msg.artifact, Observation)

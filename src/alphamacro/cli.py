@@ -27,12 +27,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         prog="alphamacro",
         description="AlphaMacro-Crypto: AI-powered macro & crypto research.",
     )
-    parser.add_argument(
-        "query", nargs="*", help="Question. Omit for interactive mode."
-    )
-    parser.add_argument(
-        "--json", action="store_true", help="Print the result as JSON."
-    )
+    parser.add_argument("query", nargs="*", help="Question. Omit for interactive mode.")
+    parser.add_argument("--json", action="store_true", help="Print the result as JSON.")
     parser.add_argument(
         "-o", "--output", metavar="FILE", help="Also write the report to FILE."
     )

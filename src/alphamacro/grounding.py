@@ -31,9 +31,7 @@ _URL_RE = re.compile(r"https?://\S+")
 _MD_LINK_RE = re.compile(r"\[[^\]]*\]\([^)]*\)")
 _TIME_RE = re.compile(r"\b\d{1,2}:\d{2}(?::\d{2})?\b")
 _ISO_DATE_RE = re.compile(r"\b\d{4}-\d{2}-\d{2}\b")
-_TEXT_DATE_RE = re.compile(
-    rf"\b\d{{1,2}}\s+(?:{_MONTHS})\b\.?(?:\s+\d{{4}})?", re.I
-)
+_TEXT_DATE_RE = re.compile(rf"\b\d{{1,2}}\s+(?:{_MONTHS})\b\.?(?:\s+\d{{4}})?", re.I)
 _LIST_MARKER_RE = re.compile(r"^\s*\d+[.)]\s+", re.M)
 _NUMBER_RE = re.compile(
     r"""
@@ -174,8 +172,7 @@ def verify_numeric_grounding(
     ungrounded: list[str] = []
     for mention in mentions:
         if any(
-            _matches(source, value, half, rel_tol)
-            for value, half in mention.candidates
+            _matches(source, value, half, rel_tol) for value, half in mention.candidates
         ):
             verified += 1
         elif mention.raw not in ungrounded:
@@ -216,9 +213,7 @@ def assess_confidence(
 ) -> ConfidenceReport:
     """Compute a deterministic ConfidenceReport from grounding and provenance."""
     obs_count = len(observations)
-    stale_count = sum(
-        1 for o in observations if o.freshness is not Freshness.FRESH
-    )
+    stale_count = sum(1 for o in observations if o.freshness is not Freshness.FRESH)
     max_age_s = max((o.age_s for o in observations), default=0.0)
     reasons: list[str] = []
 
@@ -236,9 +231,7 @@ def assess_confidence(
 
     score = grounding.score if grounding.score is not None else 0.85
     if grounding.score is None:
-        reasons.append(
-            "Laporan bersifat kualitatif tanpa klaim numerik spesifik."
-        )
+        reasons.append("Laporan bersifat kualitatif tanpa klaim numerik spesifik.")
     elif grounding.score < grounding_min_score:
         reasons.append(
             f"Skor verifikasi numerik ({grounding.score:.0%}) berada di bawah "

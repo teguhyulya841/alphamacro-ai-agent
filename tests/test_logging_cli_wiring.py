@@ -57,7 +57,9 @@ def test_cli_parse_args():
 
 
 def test_cli_returns_2_on_missing_config(clean_env, capsys, monkeypatch):
-    monkeypatch.setattr("alphamacro.config.load_dotenv", lambda: None)  # ignore a real .env
+    monkeypatch.setattr(
+        "alphamacro.config.load_dotenv", lambda: None
+    )  # ignore a real .env
     assert cli.main(["halo"]) == 2
     assert "Configuration error" in capsys.readouterr().err
 
@@ -91,7 +93,12 @@ def test_market_tool_returns_error_string_instead_of_raising():
 def test_market_tool_formats_snapshot():
     class Ok(CoinGeckoClient):
         def get_market_snapshot(self, coin_id):
-            return {"id": coin_id, "name": "Bitcoin", "symbol": "btc", "current_price": 100000}
+            return {
+                "id": coin_id,
+                "name": "Bitcoin",
+                "symbol": "btc",
+                "current_price": 100000,
+            }
 
     out = build_market_data_tool(Ok()).invoke({"coin_id": "bitcoin"})
     assert "Price USD: $100,000.00" in out

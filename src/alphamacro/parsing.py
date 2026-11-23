@@ -137,9 +137,7 @@ def collect_observations(
             )
         elif name in (MARKET_TOOL_NAME, TECHNICAL_TOOL_NAME) and text:
             endpoint = (
-                "/coins/markets"
-                if name == MARKET_TOOL_NAME
-                else "/coins/technical"
+                "/coins/markets" if name == MARKET_TOOL_NAME else "/coins/technical"
             )
             observations.append(
                 Observation(
@@ -195,11 +193,7 @@ def build_quality_warnings(category: str, tools_used: list[str]) -> list[str]:
             "Data harga CoinGecko tidak diambil pada sesi ini; angka harga (jika ada) "
             "tidak terverifikasi."
         )
-    if (
-        category == "TECHNICAL"
-        and TECHNICAL_TOOL_NAME not in tools_used
-        and tools_used
-    ):
+    if category == "TECHNICAL" and TECHNICAL_TOOL_NAME not in tools_used and tools_used:
         warnings.append(
             "Indikator teknikal tidak dihitung dari data pasar pada sesi ini; "
             "angka indikator (jika ada) tidak terverifikasi."

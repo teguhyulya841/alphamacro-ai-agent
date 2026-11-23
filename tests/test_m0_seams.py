@@ -46,9 +46,18 @@ def test_cache_entry_freshness_transitions() -> None:
         fetched_at=fetched,
         source="coingecko",
     )
-    assert entry.freshness(policy, datetime(2026, 6, 1, 0, 0, 45, tzinfo=UTC)) is Freshness.FRESH
-    assert entry.freshness(policy, datetime(2026, 6, 1, 0, 2, 0, tzinfo=UTC)) is Freshness.STALE
-    assert entry.freshness(policy, datetime(2026, 6, 1, 0, 6, 0, tzinfo=UTC)) is Freshness.EXPIRED
+    assert (
+        entry.freshness(policy, datetime(2026, 6, 1, 0, 0, 45, tzinfo=UTC))
+        is Freshness.FRESH
+    )
+    assert (
+        entry.freshness(policy, datetime(2026, 6, 1, 0, 2, 0, tzinfo=UTC))
+        is Freshness.STALE
+    )
+    assert (
+        entry.freshness(policy, datetime(2026, 6, 1, 0, 6, 0, tzinfo=UTC))
+        is Freshness.EXPIRED
+    )
 
 
 def test_agent_result_pydantic_serialization_roundtrip() -> None:

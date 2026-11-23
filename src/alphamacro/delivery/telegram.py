@@ -17,9 +17,7 @@ logger = logging.getLogger(__name__)
 _TELEGRAM_MAX_CHARS = 4000
 
 
-def split_telegram_message(
-    text: str, max_len: int = _TELEGRAM_MAX_CHARS
-) -> list[str]:
+def split_telegram_message(text: str, max_len: int = _TELEGRAM_MAX_CHARS) -> list[str]:
     """Split long reports at newline boundaries to fit Telegram's 4096-char limit."""
     cleaned = text.strip()
     if not cleaned:
@@ -112,16 +110,11 @@ class TelegramDeliveryClient:
         for attempt in range(self._max_retries + 1):
             try:
                 response = await self._client.post(path, json=payload)
-                if (
-                    response.status_code == 400
-                    and parse_mode is not None
-                ):
+                if response.status_code == 400 and parse_mode is not None:
                     # Retry without parse_mode if unescaped Markdown broke formatting
                     fallback_payload = dict(payload)
                     fallback_payload.pop("parse_mode", None)
-                    fallback_resp = await self._client.post(
-                        path, json=fallback_payload
-                    )
+                    fallback_resp = await self._client.post(path, json=fallback_payload)
                     fallback_resp.raise_for_status()
                     return
                 if (

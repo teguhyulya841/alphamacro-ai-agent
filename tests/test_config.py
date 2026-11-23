@@ -23,7 +23,12 @@ def test_defaults_and_overrides(clean_env):
 
 @pytest.mark.parametrize(
     ("name", "value"),
-    [("LLM_TIMEOUT", "abc"), ("LLM_TIMEOUT", "0"), ("LOG_LEVEL", "LOUD"), ("LOG_FORMAT", "xml")],
+    [
+        ("LLM_TIMEOUT", "abc"),
+        ("LLM_TIMEOUT", "0"),
+        ("LOG_LEVEL", "LOUD"),
+        ("LOG_FORMAT", "xml"),
+    ],
 )
 def test_invalid_values_rejected(clean_env, name, value):
     clean_env.setenv("GOOGLE_API_KEY", "gkey")

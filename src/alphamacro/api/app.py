@@ -348,7 +348,10 @@ def create_app(
     async def list_alerts(request: Request, caller: Caller) -> list[AlertRule]:
         if scheduler is None:
             raise _error(
-                503, "unavailable", "Alert scheduler tidak aktif.", request.state.request_id
+                503,
+                "unavailable",
+                "Alert scheduler tidak aktif.",
+                request.state.request_id,
             )
         return scheduler.list_rules()
 
@@ -358,7 +361,10 @@ def create_app(
     ) -> AlertRule:
         if scheduler is None:
             raise _error(
-                503, "unavailable", "Alert scheduler tidak aktif.", request.state.request_id
+                503,
+                "unavailable",
+                "Alert scheduler tidak aktif.",
+                request.state.request_id,
             )
         return scheduler.upsert_rule(rule)
 
@@ -368,22 +374,29 @@ def create_app(
     ) -> dict[str, Any]:
         if scheduler is None:
             raise _error(
-                503, "unavailable", "Alert scheduler tidak aktif.", request.state.request_id
+                503,
+                "unavailable",
+                "Alert scheduler tidak aktif.",
+                request.state.request_id,
             )
         removed = scheduler.remove_rule(rule_id)
         if not removed:
             raise _error(
-                404, "alert_not_found", "Rule alert tidak ditemukan.", request.state.request_id
+                404,
+                "alert_not_found",
+                "Rule alert tidak ditemukan.",
+                request.state.request_id,
             )
         return {"deleted": True, "rule_id": rule_id}
 
     @app.post("/v1/alerts/check", response_model=list[AlertEvent], tags=["alerts"])
-    async def trigger_alert_check(
-        request: Request, caller: Caller
-    ) -> list[AlertEvent]:
+    async def trigger_alert_check(request: Request, caller: Caller) -> list[AlertEvent]:
         if scheduler is None:
             raise _error(
-                503, "unavailable", "Alert scheduler tidak aktif.", request.state.request_id
+                503,
+                "unavailable",
+                "Alert scheduler tidak aktif.",
+                request.state.request_id,
             )
         return await scheduler.run_alert_check()
 

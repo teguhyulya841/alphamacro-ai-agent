@@ -33,7 +33,12 @@ def test_grounded_numbers_pass(report):
 
 @pytest.mark.parametrize(
     "report",
-    ["Harga $105,000.", "RSI saat ini di 71.2.", "Naik 7.5% hari ini.", "Market cap $2.5T."],
+    [
+        "Harga $105,000.",
+        "RSI saat ini di 71.2.",
+        "Naik 7.5% hari ini.",
+        "Market cap $2.5T.",
+    ],
 )
 def test_fabricated_numbers_flagged(report):
     result = check(report)

@@ -6,7 +6,9 @@ from alphamacro.tools.technical import build_technical_tool, fetch_snapshot
 
 class FakeClient:
     def __init__(self, closes=None, error=None):
-        self.closes = closes if closes is not None else [100 + i * 0.4 for i in range(260)]
+        self.closes = (
+            closes if closes is not None else [100 + i * 0.4 for i in range(260)]
+        )
         self.error = error
 
     def get_daily_closes(self, coin_id, days=365):
@@ -19,13 +21,17 @@ class FakeClient:
 
 
 def test_tool_returns_citable_text():
-    out = build_technical_tool(FakeClient()).invoke({"coin_id": "bitcoin", "timeframe": "daily"})
+    out = build_technical_tool(FakeClient()).invoke(
+        {"coin_id": "bitcoin", "timeframe": "daily"}
+    )
     assert out.startswith("TECHNICAL INDICATORS")
     assert "RSI 14:" in out and "Retrieved At:" in out
 
 
 def test_tool_4h_includes_atr():
-    out = build_technical_tool(FakeClient()).invoke({"coin_id": "ethereum", "timeframe": "4h"})
+    out = build_technical_tool(FakeClient()).invoke(
+        {"coin_id": "ethereum", "timeframe": "4h"}
+    )
     assert "ATR 14: $" in out
 
 
@@ -45,7 +51,9 @@ def test_tool_errors_are_returned_not_raised(kwargs, client, needle):
 
 
 def test_tool_swallows_unexpected_errors_without_leaking():
-    out = build_technical_tool(FakeClient(error=KeyError("secret"))).invoke({"coin_id": "bitcoin"})
+    out = build_technical_tool(FakeClient(error=KeyError("secret"))).invoke(
+        {"coin_id": "bitcoin"}
+    )
     assert out.startswith("TOOL ERROR") and "secret" not in out
 
 

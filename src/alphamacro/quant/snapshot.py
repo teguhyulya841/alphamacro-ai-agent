@@ -116,7 +116,11 @@ def build_snapshot(
     if drawdown is not None:
         snapshot["max_drawdown_pct"] = drawdown * 100
 
-    if highs is not None and lows is not None and len(highs) == len(lows) == len(closes):
+    if (
+        highs is not None
+        and lows is not None
+        and len(highs) == len(lows) == len(closes)
+    ):
         atr_value = _last(ind.atr(highs, lows, closes, 14))
         if atr_value is not None:
             snapshot["atr14"] = atr_value

@@ -124,9 +124,7 @@ async def async_fetch_snapshot(
     client: AsyncCoinGeckoClient, coin_id: str, timeframe: str = "daily"
 ) -> dict[str, Any]:
     """Async fetch + offloaded indicator computation for the async agent & API."""
-    snapshot, _ = await async_fetch_snapshot_with_provenance(
-        client, coin_id, timeframe
-    )
+    snapshot, _ = await async_fetch_snapshot_with_provenance(client, coin_id, timeframe)
     return snapshot
 
 
@@ -174,9 +172,7 @@ def build_async_technical_tool(client: AsyncCoinGeckoClient):  # noqa: ANN201
             snapshot, obs = await async_fetch_snapshot_with_provenance(
                 client, coin_id, timeframe
             )
-            retrieved = obs.fetched_at.astimezone(WIB).strftime(
-                "%Y-%m-%d %H:%M:%S WIB"
-            )
+            retrieved = obs.fetched_at.astimezone(WIB).strftime("%Y-%m-%d %H:%M:%S WIB")
             return format_snapshot(snapshot, retrieved), obs
         except MarketDataError as exc:
             logger.warning("Technical tool failed: %s", exc)

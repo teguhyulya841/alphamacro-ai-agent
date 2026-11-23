@@ -42,7 +42,9 @@ class SlidingWindowRateLimiter:
             return True, 0.0
 
     def _prune(self, now: float) -> None:
-        stale = [k for k, q in self._events.items() if not q or now - q[-1] >= self._window]
+        stale = [
+            k for k, q in self._events.items() if not q or now - q[-1] >= self._window
+        ]
         for key in stale:
             del self._events[key]
 

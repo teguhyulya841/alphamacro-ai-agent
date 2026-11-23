@@ -31,7 +31,9 @@ async def test_multi_venue_consistent_quotes_and_consensus() -> None:
 
     def binance_handler(request: httpx.Request) -> httpx.Response:
         assert request.url.params["symbol"] == "BTCUSDT"
-        return httpx.Response(200, content=json.dumps({"symbol": "BTCUSDT", "price": "95100.00"}))
+        return httpx.Response(
+            200, content=json.dumps({"symbol": "BTCUSDT", "price": "95100.00"})
+        )
 
     def coinbase_handler(request: httpx.Request) -> httpx.Response:
         assert request.url.path == "/v2/prices/BTC-USD/spot"
@@ -52,9 +54,7 @@ async def test_multi_venue_consistent_quotes_and_consensus() -> None:
         clock=clock,
     )
     try:
-        report = await validator.cross_validate(
-            "bitcoin", reference_price_usd=95000.0
-        )
+        report = await validator.cross_validate("bitcoin", reference_price_usd=95000.0)
         assert report.is_consistent is True
         assert report.divergent_venues == []
         assert report.consensus_price_usd == 95000.0
@@ -145,9 +145,7 @@ async def test_multi_venue_divergence_downgrades_engine_confidence() -> None:
                 return {
                     "messages": [
                         tool_msg,
-                        AIMessage(
-                            content="Harga Ethereum saat ini di $3,000 (+1.2%)."
-                        ),
+                        AIMessage(content="Harga Ethereum saat ini di $3,000 (+1.2%)."),
                     ]
                 }
 

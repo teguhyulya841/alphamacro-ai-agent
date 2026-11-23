@@ -104,7 +104,9 @@ class BotController:
         self._engine = engine
         self._settings = settings
         self._max_query_chars = max_query_chars
-        self._limiter = limiter or SlidingWindowRateLimiter(settings.rate_limit_per_minute)
+        self._limiter = limiter or SlidingWindowRateLimiter(
+            settings.rate_limit_per_minute
+        )
         self._active = active_users or ActiveUserRegistry()
         self._jobs = threading.BoundedSemaphore(settings.max_concurrent_jobs)
         self._sleep = sleep
@@ -116,11 +118,13 @@ class BotController:
         bot = self._bot
         bot.message_handler(commands=["start", "help"])(self.on_start)
         bot.message_handler(commands=["about"])(self.on_about)
-        bot.message_handler(content_types=["text"], func=lambda m: (m.text or "").startswith("/"))(
-            self.on_unknown_command
-        )
+        bot.message_handler(
+            content_types=["text"], func=lambda m: (m.text or "").startswith("/")
+        )(self.on_unknown_command)
         bot.message_handler(content_types=["text"])(self.on_text)
-        bot.message_handler(content_types=UNSUPPORTED_CONTENT_TYPES)(self.on_unsupported)
+        bot.message_handler(content_types=UNSUPPORTED_CONTENT_TYPES)(
+            self.on_unsupported
+        )
 
     # -- helpers ----------------------------------------------------------
 
@@ -170,7 +174,9 @@ class BotController:
         except ApiTelegramException as exc:
             if exc.error_code != 400:
                 raise
-            logger.warning("Telegram rejected HTML (%s); sending plain text", exc.description)
+            logger.warning(
+                "Telegram rejected HTML (%s); sending plain text", exc.description
+            )
             self._with_retry(
                 self._bot.send_message,
                 chat_id,
@@ -222,12 +228,15 @@ class BotController:
             return
         if len(query) > self._max_query_chars:
             self._send_html(
-                chat_id, f"Pertanyaan terlalu panjang (maksimal {self._max_query_chars} karakter)."
+                chat_id,
+                f"Pertanyaan terlalu panjang (maksimal {self._max_query_chars} karakter).",
             )
             return
 
         if not self._active.try_acquire(user_id):
-            self._send_html(chat_id, "\u23f3 Permintaan sebelumnya masih diproses. Mohon tunggu.")
+            self._send_html(
+                chat_id, "\u23f3 Permintaan sebelumnya masih diproses. Mohon tunggu."
+            )
             return
         try:
             allowed, retry_after = self._limiter.check(user_id)
@@ -239,7 +248,9 @@ class BotController:
                 )
                 return
             if not self._jobs.acquire(blocking=False):
-                self._send_html(chat_id, "Server sedang sibuk. Coba lagi sebentar lagi.")
+                self._send_html(
+                    chat_id, "Server sedang sibuk. Coba lagi sebentar lagi."
+                )
                 return
             try:
                 self._process(chat_id, user_id, query)
@@ -272,7 +283,9 @@ class BotController:
                 error_html = f"\u26a0\ufe0f {html.escape(str(exc))}"
             except Exception:
                 error_id = uuid.uuid4().hex[:8]
-                logger.exception("Request failed error_id=%s user_id=%s", error_id, user_id)
+                logger.exception(
+                    "Request failed error_id=%s user_id=%s", error_id, user_id
+                )
                 error_html = (
                     "\u26a0\ufe0f Terjadi kesalahan saat memproses permintaan. "
                     f"Silakan coba lagi nanti.\nKode: <code>{error_id}</code>"

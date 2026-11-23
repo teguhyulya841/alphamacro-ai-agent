@@ -35,9 +35,7 @@ def _empty_to_none(value: Any) -> Any:
     return value
 
 
-def _raise_config_error(
-    exc: ValidationError, env_names: dict[str, str]
-) -> NoReturn:
+def _raise_config_error(exc: ValidationError, env_names: dict[str, str]) -> NoReturn:
     """Convert Pydantic ValidationError into ConfigurationError without echoing inputs."""
     missing: list[str] = []
     details: list[str] = []
@@ -224,9 +222,7 @@ class BotSettings(BaseSettings):
         BeforeValidator(_parse_allowed_ids),
     ] = Field(
         default_factory=frozenset,
-        validation_alias=AliasChoices(
-            "allowed_user_ids", "TELEGRAM_ALLOWED_USER_IDS"
-        ),
+        validation_alias=AliasChoices("allowed_user_ids", "TELEGRAM_ALLOWED_USER_IDS"),
     )
     rate_limit_per_minute: int = Field(
         default=5,
@@ -238,9 +234,7 @@ class BotSettings(BaseSettings):
     max_concurrent_jobs: int = Field(
         default=4,
         ge=1,
-        validation_alias=AliasChoices(
-            "max_concurrent_jobs", "BOT_MAX_CONCURRENT_JOBS"
-        ),
+        validation_alias=AliasChoices("max_concurrent_jobs", "BOT_MAX_CONCURRENT_JOBS"),
     )
 
     def __init__(
@@ -296,9 +290,7 @@ class ApiSettings(BaseSettings):
     max_concurrent_requests: int = Field(
         default=4,
         ge=1,
-        validation_alias=AliasChoices(
-            "max_concurrent_requests", "API_MAX_CONCURRENT"
-        ),
+        validation_alias=AliasChoices("max_concurrent_requests", "API_MAX_CONCURRENT"),
     )
     host: str = Field(
         default="127.0.0.1",

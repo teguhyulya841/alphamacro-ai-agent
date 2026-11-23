@@ -72,36 +72,53 @@ def test_analyze_success_schema_and_identity():
     assert response.status_code == 200
     body = response.json()
     assert body["report"] == "isi laporan"
-    assert body["grounding"] == {"total": 2, "verified": 1, "score": 0.5, "ungrounded": ["9.9%"]}
+    assert body["grounding"] == {
+        "total": 2,
+        "verified": 1,
+        "score": 0.5,
+        "ungrounded": ["9.9%"],
+    }
     assert body["sources"] == [{"title": "A", "url": "https://a.com"}]
     assert body["compliance_flags"] == ["flag"]
     assert "bukan merupakan nasihat investasi" in body["disclaimer"]
     query, kwargs = engine.calls[0]
     assert kwargs["channel"] == "api" and kwargs["user_id"] == "acme"
-    assert response.headers["X-Request-ID"] == body["request_id"] == kwargs["request_id"]
+    assert (
+        response.headers["X-Request-ID"] == body["request_id"] == kwargs["request_id"]
+    )
     assert response.headers["Cache-Control"] == "no-store"
 
 
 def test_client_supplied_request_id_is_kept_only_if_safe():
     client, _ = make_client()
     ok = client.post(
-        "/v1/analyze", json={"query": "x"}, headers={**HEADERS, "X-Request-ID": "trace-12345678"}
+        "/v1/analyze",
+        json={"query": "x"},
+        headers={**HEADERS, "X-Request-ID": "trace-12345678"},
     )
     assert ok.headers["X-Request-ID"] == "trace-12345678"
     bad = client.post(
-        "/v1/analyze", json={"query": "x"}, headers={**HEADERS, "X-Request-ID": "bad id\n<x>"}
+        "/v1/analyze",
+        json={"query": "x"},
+        headers={**HEADERS, "X-Request-ID": "bad id\n<x>"},
     )
     assert bad.headers["X-Request-ID"] != "bad id\n<x>"
 
 
 def test_validation_rejects_empty_query():
     client, _ = make_client()
-    assert client.post("/v1/analyze", json={"query": ""}, headers=HEADERS).status_code == 422
+    assert (
+        client.post("/v1/analyze", json={"query": ""}, headers=HEADERS).status_code
+        == 422
+    )
 
 
 def test_rate_limit_returns_429_with_retry_after():
     client, _ = make_client(rate=1)
-    assert client.post("/v1/analyze", json={"query": "a"}, headers=HEADERS).status_code == 200
+    assert (
+        client.post("/v1/analyze", json={"query": "a"}, headers=HEADERS).status_code
+        == 200
+    )
     response = client.post("/v1/analyze", json={"query": "b"}, headers=HEADERS)
     assert response.status_code == 429
     assert int(response.headers["Retry-After"]) >= 1
@@ -112,7 +129,11 @@ def test_rate_limit_returns_429_with_retry_after():
     [
         (PolicyViolationError("rahasia terdeteksi"), 400, "policy_violation"),
         (InvalidQueryError("kosong"), 400, "invalid_query"),
-        (AgentExecutionError("RuntimeError: api_key=SECRET123"), 502, "analysis_failed"),
+        (
+            AgentExecutionError("RuntimeError: api_key=SECRET123"),
+            502,
+            "analysis_failed",
+        ),
     ],
 )
 def test_engine_errors_are_mapped_without_leaks(error, status, code):
@@ -185,9 +206,18 @@ def test_indicators_endpoint_requires_auth_and_returns_snapshot():
 
 def test_indicators_4h_and_validation():
     client, _ = make_client(market_client=FakeMarket())
-    assert client.get("/v1/indicators/bitcoin?timeframe=4h", headers=HEADERS).status_code == 200
-    assert client.get("/v1/indicators/bitcoin?timeframe=1w", headers=HEADERS).status_code == 422
-    assert client.get("/v1/indicators/BAD..ID", headers=HEADERS).status_code in (404, 422)
+    assert (
+        client.get("/v1/indicators/bitcoin?timeframe=4h", headers=HEADERS).status_code
+        == 200
+    )
+    assert (
+        client.get("/v1/indicators/bitcoin?timeframe=1w", headers=HEADERS).status_code
+        == 422
+    )
+    assert client.get("/v1/indicators/BAD..ID", headers=HEADERS).status_code in (
+        404,
+        422,
+    )
 
 
 @pytest.mark.parametrize(

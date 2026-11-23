@@ -53,12 +53,16 @@ def test_sources_deduplicated_and_validated():
 
 
 def test_failed_market_tool_is_not_a_source():
-    _, sources = parsing.inspect_tool_activity([msg("tool", "TOOL ERROR: x", MARKET_TOOL_NAME)])
+    _, sources = parsing.inspect_tool_activity(
+        [msg("tool", "TOOL ERROR: x", MARKET_TOOL_NAME)]
+    )
     assert sources == []
 
 
 def test_malformed_tavily_payload_ignored():
-    _, sources = parsing.inspect_tool_activity([msg("tool", "not json", SEARCH_TOOL_NAME)])
+    _, sources = parsing.inspect_tool_activity(
+        [msg("tool", "not json", SEARCH_TOOL_NAME)]
+    )
     assert sources == []
 
 

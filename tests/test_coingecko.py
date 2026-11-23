@@ -39,7 +39,9 @@ def client_with(responses, ttl=60):
     return client, calls
 
 
-@pytest.mark.parametrize("bad", ["", "../etc/passwd", "btc?x=1", "a/b", "-bitcoin", "x" * 70])
+@pytest.mark.parametrize(
+    "bad", ["", "../etc/passwd", "btc?x=1", "a/b", "-bitcoin", "x" * 70]
+)
 def test_coin_id_invalid(bad):
     with pytest.raises(MarketDataError):
         CoinGeckoClient.normalize_coin_id(bad)
@@ -57,7 +59,9 @@ def test_success_and_cache():
 
 
 def test_cache_disabled():
-    client, calls = client_with([FakeResponse([{"id": "b"}]), FakeResponse([{"id": "b"}])], ttl=0)
+    client, calls = client_with(
+        [FakeResponse([{"id": "b"}]), FakeResponse([{"id": "b"}])], ttl=0
+    )
     client.get_market_snapshot("b")
     client.get_market_snapshot("b")
     assert len(calls) == 2
@@ -118,6 +122,8 @@ def test_invalid_json_mapped():
 
 
 def test_small_price_precision_and_missing_values():
-    out = format_market_snapshot({"id": "x", "name": "X", "current_price": 0.000123}, "t")
+    out = format_market_snapshot(
+        {"id": "x", "name": "X", "current_price": 0.000123}, "t"
+    )
     assert "$0.000123" in out
     assert "Market Cap: N/A" in out

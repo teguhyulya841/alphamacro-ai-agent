@@ -25,7 +25,9 @@ _SEED_KEYWORDS_RE = re.compile(
     re.I,
 )
 _WORD_RUN_RE = re.compile(r"(?:\b[a-z]{3,8}\b[ \t,]+){11,}\b[a-z]{3,8}\b")
-_PRIVKEY_KEYWORD_RE = re.compile(r"private\s*key|kunci\s*privat|secret\s*key|priv\s*key", re.I)
+_PRIVKEY_KEYWORD_RE = re.compile(
+    r"private\s*key|kunci\s*privat|secret\s*key|priv\s*key", re.I
+)
 _HEX64_RE = re.compile(r"\b(?:0x)?[0-9a-fA-F]{64}\b")
 _BASE58 = "[1-9A-HJ-NP-Za-km-z]"
 _SECRET_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
@@ -108,7 +110,8 @@ def scan_input(query: str) -> InputScan:
             redacted_kinds.append(kind)
     if redacted_kinds:
         flags.append(
-            "Data pribadi dihapus dari pertanyaan sebelum diproses: " + ", ".join(redacted_kinds)
+            "Data pribadi dihapus dari pertanyaan sebelum diproses: "
+            + ", ".join(redacted_kinds)
         )
     if _INJECTION_RE.search(query):
         flags.append(
@@ -137,7 +140,10 @@ _OUTPUT_RULES: tuple[tuple[str, re.Pattern[str]], ...] = (
     ),
     (
         "Target harga eksplisit",
-        re.compile(r"\btarget\s+(?:harga\s+)?(?:price\s+)?(?:sebesar\s+|di\s+)?[$€£]?\s?\d", re.I),
+        re.compile(
+            r"\btarget\s+(?:harga\s+)?(?:price\s+)?(?:sebesar\s+|di\s+)?[$€£]?\s?\d",
+            re.I,
+        ),
     ),
 )
 

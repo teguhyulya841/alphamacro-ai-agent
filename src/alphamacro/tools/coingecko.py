@@ -64,9 +64,7 @@ def normalize_coin_id(coin_id: str) -> str:
     return normalized
 
 
-def _parse_observed_at(
-    raw_timestamp: Any, fallback: AwareDatetime
-) -> AwareDatetime:
+def _parse_observed_at(raw_timestamp: Any, fallback: AwareDatetime) -> AwareDatetime:
     if isinstance(raw_timestamp, str) and raw_timestamp.strip():
         try:
             dt = datetime.fromisoformat(raw_timestamp.replace("Z", "+00:00"))
@@ -230,9 +228,7 @@ class AsyncCoinGeckoClient:
             fetcher=lambda: self._fetch_raw_json(path, params),
         )
 
-    async def get_market_snapshot_with_provenance(
-        self, coin_id: str
-    ) -> ProvenanceData:
+    async def get_market_snapshot_with_provenance(self, coin_id: str) -> ProvenanceData:
         normalized = self.normalize_coin_id(coin_id)
         cached = await self._get_json(
             "/coins/markets",
@@ -338,9 +334,7 @@ class AsyncCoinGeckoClient:
             raise MarketDataError("Data OHLC tidak tersedia.")
         try:
             rows = [
-                [float(x) for x in row[:5]]
-                for row in payload
-                if isinstance(row, list)
+                [float(x) for x in row[:5]] for row in payload if isinstance(row, list)
             ]
         except (TypeError, ValueError) as exc:
             raise MarketDataError("Format data OHLC tidak dikenali.") from exc
