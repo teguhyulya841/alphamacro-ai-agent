@@ -1,0 +1,33 @@
+# Engineering Standards & Architectural Guidelines
+
+## 1. Architectural Principles
+- **Modularity & Separation of Concerns**: Strictly decouple core domain logic from infrastructure, I/O, persistence, and transport layers (APIs, CLI, messaging interfaces).
+- **Simplicity Over Cleverness (KISS & DRY)**: Optimize for long-term maintainability and cognitive clarity. Abstract repeated patterns only when a clear domain boundary emerges.
+- **Fail-Fast & Defensive Boundaries**: Validate all external inputs at system entry points. Surface invalid states immediately using explicit, domain-specific exceptions.
+- **Dependency Inversion**: Inject external clients, configurations, and state stores rather than instantiating them inside business logic to ensure deterministic behavior.
+
+## 2. Python 3.12+ Language Standards
+- **Exhaustive Static Typing**: Enforce strict PEP 695/604 type annotations (`list[str]`, `X | None`, `TypeAlias`) across all signatures and attributes. Restrict `Any` strictly to untyped third-party boundaries with inline justification.
+- **Schema-Driven Validation**: Define all configuration profiles, external payloads, and data transfer objects (DTOs) using `Pydantic v2` (`BaseModel`, `BaseSettings`) with strict validation rules.
+- **Self-Documenting Code & Docstrings**: Write concise, Google-style docstrings for public interfaces, classes, and non-trivial algorithms. Document architectural intent, invariants, and edge-case contracts—never restate the implementation.
+- **Idiomatic Runtime Practices**:
+  - Use `pathlib.Path` exclusively for filesystem operations.
+  - Use structured `logging` (`structlog` or standard `logging` with contextual metadata) instead of `print()`.
+  - Manage I/O streams, locks, and network sessions via deterministic context managers (`with` / `async with`).
+  - Leverage `asyncio` and non-blocking I/O for concurrent network operations; avoid mixing blocking calls inside event loops.
+
+## 3. Security, Resilience & Observability
+- **Zero-Trust Secret Management**: Never hardcode credentials, tokens, or keys. Load secrets exclusively from environment variables via `pydantic-settings` and wrap sensitive fields in `SecretStr` to prevent accidental serialization in logs or tracebacks.
+- **Structured Error Handling**: Prohibit bare `except:` or silent exception swallowing (`except Exception: pass`). Catch granular exceptions, preserve exception chaining (`raise ... from err`), and emit structured error logs with correlation context.
+- **Network & External API Resilience**: Treat all third-party services as unreliable. Enforce explicit timeouts, bounded retries with exponential backoff and jitter, and graceful degradation on transient failures (e.g., HTTP 429/5xx).
+- **Input Sanitization**: Treat all user-supplied and external payloads as untrusted; sanitize and coerce data before downstream execution.
+
+## 4. Testing, Verification & Code Quality
+- **Deterministic Unit Testing**: Architect pure, side-effect-free core functions to maximize testability under `pytest`. Isolate all external network/database calls using mocks, stubs, or dependency overrides.
+- **Boundary & Failure Coverage**: Explicitly test edge cases—empty collections, `None` payloads, malformed schemas, timeouts, and rate-limit responses.
+- **Static Analysis & Formatting**: Adhere strictly to `Ruff` linting and formatting rules (88-character line limit, deterministic import sorting, zero unused variables) and pass strict type checking (`mypy` / `pyright`).
+
+## 5. Agentic Workflow & Execution Protocol
+- **Architecture-First Execution**: For multi-file changes or new subsystems, present a concise architectural plan, affected file tree, and interface contracts before modifying code.
+- **Surgical, Atomic Diffs**: Restrict modifications strictly to the scoped task. Do not perform unrequested refactoring or formatting sweeps on unrelated modules.
+- **Mandatory Post-Change Verification**: After any logic modification, execute or provide exact verification commands (`pytest`, `ruff check`, type checks) to prove functional correctness and zero regressions.

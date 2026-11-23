@@ -1,0 +1,29 @@
+services:
+  bot:
+    build: .
+    command: ["alphamacro-bot"]
+    env_file: .env
+    restart: unless-stopped
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    volumes:
+      - audit:/app/audit
+
+  api:
+    build: .
+    command: ["alphamacro-api"]
+    env_file: .env
+    environment:
+      API_HOST: "0.0.0.0"   # inside the container; the port is published on localhost only
+    ports:
+      - "127.0.0.1:8000:8000"
+    restart: unless-stopped
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    volumes:
+      - audit:/app/audit
+
+volumes:
+  audit:
