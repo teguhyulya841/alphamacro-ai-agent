@@ -38,11 +38,13 @@ from alphamacro.infra.state import StateBundle, build_state
 from alphamacro.models import (
     AgentResult,
     ConfidenceReport,
+    CrossValidationReport,
     GroundingReport,
     Observation,
     RateRule,
     Source,
     StateBackend,
+    VenueQuote,
 )
 from alphamacro.tools import AsyncCoinGeckoClient, async_fetch_snapshot, fetch_snapshot
 
@@ -69,6 +71,7 @@ class AnalyzeResponse(BaseModel):
     compliance_flags: list[str]
     grounding: GroundingReport | None
     observations: list[Observation] = Field(default_factory=list)
+    cross_validations: list[CrossValidationReport] = Field(default_factory=list)
     confidence: ConfidenceReport | None = None
     latency_seconds: float
     model: str
@@ -108,8 +111,34 @@ class AnalyzeResponse(BaseModel):
                 age_s=o.age_s,
                 metrics=dict(o.metrics),
                 urls=list(o.urls),
+                cross_validation=o.cross_validation,
             )
             for o in getattr(result, "observations", [])
+        ]
+        cross_validations = [
+            CrossValidationReport(
+                coin_id=cv.coin_id,
+                reference_venue=cv.reference_venue,
+                reference_price_usd=cv.reference_price_usd,
+                quotes=[
+                    VenueQuote(
+                        venue=q.venue,
+                        symbol=q.symbol,
+                        price_usd=q.price_usd,
+                        observed_at=q.observed_at,
+                        fetched_at=q.fetched_at,
+                        freshness=q.freshness,
+                        age_s=q.age_s,
+                    )
+                    for q in cv.quotes
+                ],
+                consensus_price_usd=cv.consensus_price_usd,
+                max_spread_pct=cv.max_spread_pct,
+                divergent_venues=list(cv.divergent_venues),
+                is_consistent=cv.is_consistent,
+                warnings=list(cv.warnings),
+            )
+            for cv in getattr(result, "cross_validations", [])
         ]
         return cls(
             request_id=result.request_id,
@@ -122,6 +151,7 @@ class AnalyzeResponse(BaseModel):
             compliance_flags=list(result.compliance_flags),
             grounding=grounding,
             observations=observations,
+            cross_validations=cross_validations,
             confidence=confidence,
             latency_seconds=result.latency_seconds,
             model=result.model,

@@ -9,7 +9,7 @@ import time
 from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import httpx
 import requests
@@ -25,8 +25,17 @@ from alphamacro.exceptions import CoinNotFoundError, MarketDataError
 from alphamacro.infra.caching import DEFAULT_POLICIES, CachedPayload, CachingFeed
 from alphamacro.infra.http import create_async_client, get_json_with_retry
 from alphamacro.infra.state.memory import MemoryCacheStore, MemoryLockManager
-from alphamacro.models import CacheClass, Freshness, FreshnessPolicy, Observation
+from alphamacro.models import (
+    CacheClass,
+    CrossValidationReport,
+    Freshness,
+    FreshnessPolicy,
+    Observation,
+)
 from alphamacro.ports import Clock
+
+if TYPE_CHECKING:
+    from alphamacro.tools.venues import MultiVenueValidator
 
 logger = logging.getLogger(__name__)
 
@@ -81,6 +90,7 @@ def build_market_observation(
     observed_at: AwareDatetime,
     freshness: Freshness,
     age_s: float,
+    cross_validation: CrossValidationReport | None = None,
 ) -> Observation:
     """Build a structured Observation artifact from a CoinGecko market snapshot."""
     coin_id = str(snapshot.get("id", "unknown"))
@@ -92,6 +102,13 @@ def build_market_observation(
         "market_cap_usd": _float_or_none(snapshot.get("market_cap")),
         "volume_24h_usd": _float_or_none(snapshot.get("total_volume")),
     }
+    if cross_validation is not None and cross_validation.quotes:
+        metrics["consensus_price_usd"] = cross_validation.consensus_price_usd
+        metrics["max_spread_pct"] = cross_validation.max_spread_pct
+        metrics["venues_checked"] = len(cross_validation.quotes)
+        for quote in cross_validation.quotes:
+            metrics[f"{quote.venue}_price_usd"] = quote.price_usd
+
     return Observation(
         source="coingecko",
         endpoint="/coins/markets",
@@ -102,6 +119,7 @@ def build_market_observation(
         age_s=max(0.0, age_s),
         metrics=metrics,
         urls=["https://www.coingecko.com"],
+        cross_validation=cross_validation,
     )
 
 
@@ -353,7 +371,7 @@ class AsyncCoinGeckoClient:
 
 
 class CoinGeckoClient:
-    """Legacy synchronous CoinGecko client preserved during M1-M3 migration."""
+    """Legacy synchronous CoinGecko client preserved during migration."""
 
     BASE_URL = "https://api.coingecko.com/api/v3"
     _COIN_ID_RE = _COIN_ID_RE
@@ -506,25 +524,45 @@ def _fmt_usd(value: Any) -> str:
     return f"${number:,.{decimals}f}"
 
 
-def format_market_snapshot(snapshot: dict[str, Any], retrieved_at: str) -> str:
+def format_market_snapshot(
+    snapshot: dict[str, Any],
+    retrieved_at: str,
+    cross_validation: CrossValidationReport | None = None,
+) -> str:
     """Render a snapshot as plain text for the LLM (keeps timestamps and source)."""
     name = snapshot.get("name", snapshot.get("id", "N/A"))
-    return (
-        f"CRYPTO MARKET DATA: {name} ({str(snapshot.get('symbol', '')).upper()})\n"
-        f"Coin ID: {snapshot.get('id', 'N/A')}\n"
-        f"Price USD: {_fmt_usd(snapshot.get('current_price'))}\n"
-        f"24H Change: {_fmt_number(snapshot.get('price_change_percentage_24h'))}%\n"
-        f"24H High: {_fmt_usd(snapshot.get('high_24h'))}\n"
-        f"24H Low: {_fmt_usd(snapshot.get('low_24h'))}\n"
-        f"Market Cap: {_fmt_usd(snapshot.get('market_cap'))}\n"
-        f"24H Volume: {_fmt_usd(snapshot.get('total_volume'))}\n"
-        f"Source Last Updated: {snapshot.get('last_updated', 'Tidak tersedia')}\n"
-        f"Retrieved At: {retrieved_at}\n"
-        "Source: CoinGecko API (https://www.coingecko.com)"
-    )
+    lines = [
+        f"CRYPTO MARKET DATA: {name} ({str(snapshot.get('symbol', '')).upper()})",
+        f"Coin ID: {snapshot.get('id', 'N/A')}",
+        f"Price USD: {_fmt_usd(snapshot.get('current_price'))}",
+        f"24H Change: {_fmt_number(snapshot.get('price_change_percentage_24h'))}%",
+        f"24H High: {_fmt_usd(snapshot.get('high_24h'))}",
+        f"24H Low: {_fmt_usd(snapshot.get('low_24h'))}",
+        f"Market Cap: {_fmt_usd(snapshot.get('market_cap'))}",
+        f"24H Volume: {_fmt_usd(snapshot.get('total_volume'))}",
+        f"Source Last Updated: {snapshot.get('last_updated', 'Tidak tersedia')}",
+        f"Retrieved At: {retrieved_at}",
+        "Source: CoinGecko API (https://www.coingecko.com)",
+    ]
+    if cross_validation is not None and cross_validation.quotes:
+        venue_str = ", ".join(
+            f"{q.venue}={_fmt_usd(q.price_usd)}" for q in cross_validation.quotes
+        )
+        status = "CONSISTENT" if cross_validation.is_consistent else "DIVERGENT"
+        lines.append(
+            f"Multi-Venue Cross-Validation: {status} | "
+            f"Consensus: {_fmt_usd(cross_validation.consensus_price_usd)} | "
+            f"Max Spread: {cross_validation.max_spread_pct:.2f}% | "
+            f"Venues: {venue_str}"
+        )
+    return "\n".join(lines)
 
 
-def build_async_market_data_tool(client: AsyncCoinGeckoClient):  # noqa: ANN201
+def build_async_market_data_tool(
+    client: AsyncCoinGeckoClient,
+    *,
+    validator: MultiVenueValidator | None = None,
+):  # noqa: ANN201
     """Wrap an :class:`AsyncCoinGeckoClient` as an async tool emitting Observation."""
 
     @tool(MARKET_TOOL_NAME, response_format="content_and_artifact")
@@ -532,7 +570,7 @@ def build_async_market_data_tool(client: AsyncCoinGeckoClient):  # noqa: ANN201
         coin_id: str = "bitcoin",
     ) -> tuple[str, Observation | None]:
         """Fetch cryptocurrency price (USD), 24h change, market cap, volume and
-        24h high/low from CoinGecko.
+        24h high/low from CoinGecko (with multi-venue spot cross-validation).
 
         Args:
             coin_id: CoinGecko coin ID, e.g. 'bitcoin', 'ethereum', 'solana'.
@@ -543,14 +581,24 @@ def build_async_market_data_tool(client: AsyncCoinGeckoClient):  # noqa: ANN201
             retrieved = prov.fetched_at.astimezone(WIB).strftime(
                 "%Y-%m-%d %H:%M:%S WIB"
             )
+            cv: CrossValidationReport | None = None
+            ref_price = _float_or_none(snapshot.get("current_price"))
+            if validator is not None and ref_price is not None and ref_price > 0:
+                normalized = normalize_coin_id(coin_id)
+                cv = await validator.cross_validate(
+                    normalized,
+                    reference_price_usd=ref_price,
+                    reference_venue="coingecko",
+                )
             obs = build_market_observation(
                 snapshot,
                 fetched_at=prov.fetched_at,
                 observed_at=prov.observed_at,
                 freshness=prov.freshness,
                 age_s=prov.age_s,
+                cross_validation=cv,
             )
-            return format_market_snapshot(snapshot, retrieved), obs
+            return format_market_snapshot(snapshot, retrieved, cross_validation=cv), obs
         except MarketDataError as exc:
             logger.warning("Market data tool failed: %s", exc)
             return f"TOOL ERROR: {exc}", None

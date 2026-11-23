@@ -107,6 +107,32 @@ class Lease(Frozen):
     expires_at: AwareDatetime
 
 
+class VenueQuote(Frozen):
+    """Spot price quote fetched from a secondary exchange venue."""
+
+    venue: str
+    symbol: str
+    price_usd: float = Field(gt=0.0)
+    observed_at: AwareDatetime
+    fetched_at: AwareDatetime
+    freshness: Freshness = Freshness.FRESH
+    age_s: float = Field(default=0.0, ge=0.0)
+
+
+class CrossValidationReport(Frozen):
+    """Comparison of a reference price against secondary exchange spot venues."""
+
+    coin_id: str
+    reference_venue: str = "coingecko"
+    reference_price_usd: float = Field(gt=0.0)
+    quotes: list[VenueQuote] = Field(default_factory=list)
+    consensus_price_usd: float = Field(gt=0.0)
+    max_spread_pct: float = Field(default=0.0, ge=0.0)
+    divergent_venues: list[str] = Field(default_factory=list)
+    is_consistent: bool = True
+    warnings: list[str] = Field(default_factory=list)
+
+
 class Observation(Frozen):
     """Structured provenance artifact emitted alongside tool text output."""
 
@@ -119,6 +145,7 @@ class Observation(Frozen):
     age_s: float = Field(default=0.0, ge=0.0)
     metrics: dict[str, float | int | str | None] = Field(default_factory=dict)
     urls: list[str] = Field(default_factory=list)
+    cross_validation: CrossValidationReport | None = None
 
 
 class IndicatorSnapshot(Frozen):
@@ -244,6 +271,7 @@ class AgentResult(BaseModel):
     grounding: GroundingReport | None = None
     compliance_flags: list[str] = Field(default_factory=list)
     observations: list[Observation] = Field(default_factory=list)
+    cross_validations: list[CrossValidationReport] = Field(default_factory=list)
     confidence: ConfidenceReport | None = None
 
     def __init__(
@@ -262,6 +290,7 @@ class AgentResult(BaseModel):
         grounding: GroundingReport | None = _UNSET,
         compliance_flags: list[str] = _UNSET,
         observations: list[Observation] = _UNSET,
+        cross_validations: list[CrossValidationReport] = _UNSET,
         confidence: ConfidenceReport | None = _UNSET,
         **data: Any,
     ) -> None:
@@ -280,6 +309,7 @@ class AgentResult(BaseModel):
             "grounding": grounding,
             "compliance_flags": compliance_flags,
             "observations": observations,
+            "cross_validations": cross_validations,
             "confidence": confidence,
         }
         for key, val in positional.items():
@@ -316,6 +346,19 @@ class AgentResult(BaseModel):
             if g.ungrounded:
                 ungrounded_fmt = ", ".join(f"`{x}`" for x in g.ungrounded)
                 parts.append(f"Tidak terverifikasi: {ungrounded_fmt}")
+        if self.cross_validations:
+            parts += ["", "## Validasi Silang Multi-Venue"]
+            for cv in self.cross_validations:
+                status = "KONSISTEN" if cv.is_consistent else "DIVERGEN"
+                venues = ", ".join(
+                    f"{q.venue} (${q.price_usd:,.2f})" for q in cv.quotes
+                ) or "tidak ada venue sekunder"
+                parts.append(
+                    f"- **{cv.coin_id}**: {status} | Ref ({cv.reference_venue}): "
+                    f"${cv.reference_price_usd:,.2f} | Konsensus: "
+                    f"${cv.consensus_price_usd:,.2f} | Spread maks: "
+                    f"{cv.max_spread_pct:.2f}% | Pembanding: {venues}"
+                )
         if self.confidence is not None:
             parts += [
                 "",

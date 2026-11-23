@@ -1,8 +1,8 @@
 """Numeric grounding verification & provenance-based confidence scoring.
 
 Grounding checks that numbers in the report appear in raw tool outputs or structured
-Observation artifacts (within rounding tolerance). Confidence combines numeric grounding
-with observation freshness/staleness.
+Observation artifacts (within rounding tolerance). Confidence combines numeric grounding,
+observation freshness/staleness, and multi-venue spot price consistency.
 """
 
 from __future__ import annotations
@@ -16,6 +16,7 @@ from dataclasses import dataclass
 from alphamacro.models import (
     ConfidenceLevel,
     ConfidenceReport,
+    CrossValidationReport,
     Freshness,
     GroundingReport,
     Observation,
@@ -210,6 +211,7 @@ def assess_confidence(
     *,
     grounding: GroundingReport,
     observations: Sequence[Observation],
+    cross_validations: Sequence[CrossValidationReport] = (),
     grounding_min_score: float = 0.8,
 ) -> ConfidenceReport:
     """Compute a deterministic ConfidenceReport from grounding and provenance."""
@@ -255,12 +257,32 @@ def assess_confidence(
             f"(usia maks {max_age_s:.0f} detik)."
         )
 
+    divergent_reports = [cv for cv in cross_validations if not cv.is_consistent]
+    consistent_reports = [
+        cv for cv in cross_validations if cv.is_consistent and cv.quotes
+    ]
+    if divergent_reports:
+        worst = max(cv.max_spread_pct for cv in divergent_reports)
+        score = max(0.0, score - 0.25)
+        reasons.append(
+            f"Terdeteksi divergensi harga antar-venue hingga {worst:.2f}% "
+            f"pada {len(divergent_reports)} aset."
+        )
+    elif consistent_reports:
+        total_venues = sum(len(cv.quotes) for cv in consistent_reports)
+        reasons.append(
+            f"Harga tervalidasi silang terhadap {total_venues} kutipan exchange "
+            "dengan spread dalam batas normal."
+        )
+
     clamped = round(min(1.0, max(0.0, score)), 4)
 
     if grounding.score is not None and grounding.score < 0.5:
         level = ConfidenceLevel.LOW
-    elif stale_count > 0 or (
-        grounding.score is not None and grounding.score < grounding_min_score
+    elif (
+        stale_count > 0
+        or bool(divergent_reports)
+        or (grounding.score is not None and grounding.score < grounding_min_score)
     ):
         level = ConfidenceLevel.MEDIUM if clamped >= 0.5 else ConfidenceLevel.LOW
     elif clamped >= 0.8:

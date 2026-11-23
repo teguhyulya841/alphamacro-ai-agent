@@ -56,6 +56,7 @@ from alphamacro.tools import (
     build_async_market_data_tool,
     build_async_technical_tool,
 )
+from alphamacro.tools.venues import MultiVenueValidator
 
 logger = logging.getLogger(__name__)
 
@@ -67,7 +68,7 @@ class AlphaMacroEngine:
 
     Pipeline per request:
         input guard (secrets blocked, PII redacted) -> intent router -> async tool agent
-        -> provenance & numeric grounding + confidence + compliance -> audit record.
+        -> provenance & multi-venue validation + grounding + confidence -> audit.
     """
 
     def __init__(
@@ -82,6 +83,7 @@ class AlphaMacroEngine:
         state_bundle: StateBundle | None = None,
         state_settings: StateSettings | None = None,
         clock: Clock | None = None,
+        venue_validator: MultiVenueValidator | None = None,
     ) -> None:
         self.settings = settings
         self.clock: Clock = clock if clock is not None else SystemClock()
@@ -101,6 +103,7 @@ class AlphaMacroEngine:
             else IntentRouter(self.llm.with_structured_output(RouteQuery))
         )
         self.market_client: AsyncCoinGeckoClient | None = None
+        self.venue_validator: MultiVenueValidator | None = venue_validator
         self.tools = list(tools) if tools is not None else self._default_tools()
         self._agent_factory: AgentFactory = agent_factory or self._build_agent
         self.audit = audit if audit is not None else self._default_audit()
@@ -144,8 +147,15 @@ class AlphaMacroEngine:
             api_key=coingecko_key,
             clock=self.clock,
         )
+        if self.venue_validator is None:
+            self.venue_validator = MultiVenueValidator(
+                caching_feed=caching_feed,
+                clock=self.clock,
+            )
         return [
-            build_async_market_data_tool(self.market_client),
+            build_async_market_data_tool(
+                self.market_client, validator=self.venue_validator
+            ),
             build_async_technical_tool(self.market_client),
             TavilySearch(
                 max_results=5,
@@ -180,6 +190,8 @@ class AlphaMacroEngine:
 
     async def aclose(self) -> None:
         """Close owned async HTTP clients and background cache tasks."""
+        if self.venue_validator is not None:
+            await self.venue_validator.aclose()
         if self.market_client is not None:
             await self.market_client.aclose()
 
@@ -309,9 +321,16 @@ class AlphaMacroEngine:
 
         tools_used, sources = inspect_tool_activity(messages)
         observations = collect_observations(messages, now=now_dt)
+        cross_validations = [
+            obs.cross_validation
+            for obs in observations
+            if obs.cross_validation is not None
+        ]
+        cv_warnings = [w for cv in cross_validations for w in cv.warnings]
         warnings = [
             *build_quality_warnings(route.category, tools_used),
             *build_staleness_warnings(observations),
+            *cv_warnings,
         ]
 
         grounding = verify_numeric_grounding(
@@ -331,6 +350,7 @@ class AlphaMacroEngine:
         confidence = assess_confidence(
             grounding=grounding,
             observations=observations,
+            cross_validations=cross_validations,
             grounding_min_score=self.settings.grounding_min_score,
         )
         compliance_flags = [*scan.flags, *scan_output(report)]
@@ -355,6 +375,7 @@ class AlphaMacroEngine:
             confidence_level=confidence.level.value,
             confidence_score=confidence.score,
             stale_observations=confidence.stale_observations,
+            divergent_venues=sum(len(cv.divergent_venues) for cv in cross_validations),
             compliance_flags=len(compliance_flags),
             warnings=len(warnings),
         )
@@ -374,5 +395,6 @@ class AlphaMacroEngine:
             grounding=grounding,
             compliance_flags=compliance_flags,
             observations=observations,
+            cross_validations=cross_validations,
             confidence=confidence,
         )
