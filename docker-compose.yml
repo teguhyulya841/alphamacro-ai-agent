@@ -2,11 +2,13 @@ services:
   redis:
     image: redis:7-alpine
     container_name: alphamacro-redis
+    # volatile-lru: hanya key ber-TTL (cache) yang boleh dibuang saat memori penuh,
+    # sehingga alert rules & state scheduler tidak ikut terhapus.
     command: >
       redis-server
       --appendonly yes
       --maxmemory 256mb
-      --maxmemory-policy allkeys-lru
+      --maxmemory-policy volatile-lru
     volumes:
       - redis_data:/data
     healthcheck:
@@ -17,6 +19,8 @@ services:
     restart: unless-stopped
 
   api:
+    # Image dibangun sekali di service ini, lalu dipakai ulang oleh scheduler.
+    image: alphamacro:latest
     build:
       context: .
       dockerfile: Dockerfile
@@ -24,6 +28,8 @@ services:
     env_file:
       - .env
     environment:
+      # Override agar container memakai Redis di jaringan Docker,
+      # apa pun nilai default di .env.
       STATE_BACKEND: redis
       REDIS_URL: redis://redis:6379/0
       LOG_FORMAT: json
@@ -33,7 +39,9 @@ services:
       --port 8000
       --workers 2
     ports:
-      - "8000:8000"
+      # Hanya bisa diakses dari mesin lokal. Ubah ke "8000:8000" bila ingin
+      # membuka ke jaringan luar (disarankan lewat reverse proxy + HTTPS).
+      - "127.0.0.1:8000:8000"
     volumes:
       - ./logs:/app/logs
       - ./data:/app/data
@@ -55,9 +63,7 @@ services:
     restart: unless-stopped
 
   scheduler:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    image: alphamacro:latest
     container_name: alphamacro-scheduler
     env_file:
       - .env
@@ -70,7 +76,8 @@ services:
       - ./logs:/app/logs
       - ./data:/app/data
     depends_on:
-      redis:
+      api:
+        # Tunggu image selesai dibangun & API sehat sebelum scheduler start.
         condition: service_healthy
     restart: unless-stopped
 

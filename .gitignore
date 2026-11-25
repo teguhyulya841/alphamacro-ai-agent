@@ -1,39 +1,33 @@
-# Secrets - never commit
+# Secrets
 .env
 .env.*
 !.env.example
+
+# Runtime data & logs
+logs/
+data/
+*.db
+*.sqlite3
 
 # Python
 __pycache__/
 *.py[cod]
 *.egg-info/
+.venv/
+venv/
 build/
 dist/
-.eggs/
 
-# Virtual environments
-venv/
-.venv/
-env/
-
-# Tooling caches & coverage
+# Tooling caches
 .pytest_cache/
 .ruff_cache/
 .mypy_cache/
 .coverage
 htmlcov/
-coverage.xml
 
-# IDE / OS
-.vscode/
-.idea/
+# OS / editor
 .DS_Store
 Thumbs.db
-
-# Generated reports
-reports/
-*.log
-
+.idea/
+.vscode/
 .clineignore
-logs/
-data/
