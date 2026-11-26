@@ -4,7 +4,8 @@ from alphamacro.grounding import extract_mentions, verify_numeric_grounding
 
 TOOL = (
     "CRYPTO MARKET DATA: Bitcoin (BTC)\nPrice USD: $98,512.34\n24H Change: -2.46%\n"
-    "Market Cap: $1,950,000,000,000.00\nRSI 14: 58.32\nRetrieved At: 2026-11-14 10:00:00 WIB"
+    "Market Cap: $1,950,000,000,000.00\nRSI 14: 58.32\n"
+    "Retrieved At: 2026-11-14 10:00:00 WIB"
 )
 
 
@@ -49,7 +50,8 @@ def test_fabricated_numbers_flagged(report):
 def test_ignored_noise():
     report = (
         "1. Ringkasan\n2. Risiko\nPada 14 November 2026 pukul 21:50 WIB, tahun 2026. "
-        "Dalam 30 hari terakhir ada 3 skenario. Lihat [CPI 2025](https://x.com/a/123456). "
+        "Dalam 30 hari terakhir ada 3 skenario. "
+        "Lihat [CPI 2025](https://x.com/a/123456). "
         "Yield 10Y dan M2 relevan. 2026-11-14."
     )
     assert check(report).total == 0

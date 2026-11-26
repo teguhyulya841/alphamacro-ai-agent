@@ -1,4 +1,7 @@
-"""Integration of guard, grounding, compliance and audit inside the engine (no network)."""
+"""Integration of guard, grounding, compliance and audit inside the engine.
+
+Runs without network access.
+"""
 
 from types import SimpleNamespace
 

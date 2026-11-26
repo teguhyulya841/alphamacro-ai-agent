@@ -1,8 +1,8 @@
 """Convert LLM Markdown into Telegram-safe HTML and split long messages.
 
 Telegram's legacy Markdown mode rejects headings, tables and many LLM constructs, so the
-bot renders a conservative subset to HTML instead (bold, italic, strike, code, pre, links,
-bullets, quotes). Anything unsupported degrades to readable plain text.
+bot renders a conservative subset to HTML instead (bold, italic, strike, code, pre,
+links, bullets, quotes). Anything unsupported degrades to readable plain text.
 """
 
 from __future__ import annotations
@@ -33,7 +33,8 @@ def _escape(text: str) -> str:
 
 
 def _format_text(text: str) -> str:
-    """Escape, then apply inline formatting (links are stashed to protect their URLs)."""
+    """Escape, then apply inline formatting.
+    Links are stashed to protect their URLs."""
     escaped = _escape(text)
     links: list[tuple[str, str]] = []
 

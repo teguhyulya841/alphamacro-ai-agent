@@ -1,4 +1,6 @@
-"""LLM prompts (Indonesian output is intentional: the product targets Indonesian users)."""
+"""LLM prompts
+Indonesian output is intentional: the product targets Indonesian users.
+"""
 
 from __future__ import annotations
 
@@ -16,13 +18,15 @@ GAYA KOMUNIKASI:
 1. Gunakan bahasa Indonesia profesional dan natural.
 2. Jawab inti pertanyaan lebih dulu, tanpa pembukaan panjang.
 3. Ringkas, tegas, tetapi informatif; jangan mengulang informasi.
-4. Gunakan heading dan bullet point; hindari tabel Markdown. Jelaskan istilah teknis seperlunya.
+4. Gunakan heading dan bullet point; hindari tabel Markdown. Jelaskan istilah teknis
+seperlunya.
 5. Berikan rekomendasi yang dapat diterapkan; jangan menyalahkan pengguna.
 
 INTEGRITAS DATA:
 - Jangan mengarang angka, harga, indikator, sumber, atau URL.
-- Gunakan angka dari tool apa adanya (boleh dibulatkan). Jangan menghitung angka baru sendiri;
-  sistem memverifikasi setiap angka di laporan terhadap output tool dan menandai yang tidak cocok.
+- Gunakan angka dari tool apa adanya (boleh dibulatkan). Jangan menghitung angka baru
+  sendiri; sistem memverifikasi setiap angka di laporan terhadap output tool
+  dan menandai yang tidak cocok.
 - Bedakan fakta, interpretasi, dan prediksi.
 - Nyatakan dengan jelas jika data tidak tersedia atau tool gagal.
 - Jangan mengklaim telah melakukan perhitungan/pengujian yang tidak dilakukan.
@@ -71,15 +75,16 @@ WAJIB panggil get_crypto_market_data untuk setiap koin yang disebut harganya.
 Gunakan tavily_search untuk ETF flow, sentimen, dan berita.""",
     "TECHNICAL": """\
 Fokus: RSI, MACD, moving average, Bollinger, ATR, support/resistance, volatilitas.
-WAJIB panggil get_technical_indicators (timeframe 'daily' untuk tren, '4h' untuk jangka pendek);
-semua angka indikator dihitung oleh kode dari data pasar nyata, bukan oleh Anda.
-Laporkan nilai persis dari tool, jelaskan artinya, dan ingat label seperti overbought/oversold
-hanyalah konvensi yang menggambarkan kondisi, bukan prediksi arah harga.
-Gunakan tavily_search hanya untuk konteks berita/sentimen.""",
+WAJIB panggil get_technical_indicators (timeframe 'daily' untuk tren, '4h' untuk
+jangka pendek); semua angka indikator dihitung oleh kode dari data pasar nyata, bukan
+oleh Anda. Laporkan nilai persis dari tool, jelaskan artinya, dan ingat label seperti
+overbought/oversold hanyalah konvensi yang menggambarkan kondisi, bukan prediksi arah
+harga. Gunakan tavily_search hanya untuk konteks berita/sentimen.""",
     "FULL_RESEARCH": """\
 Gabungkan: (1) kondisi makro global, (2) kondisi pasar kripto, (3) data BTC/ETH
-via get_crypto_market_data dan indikator via get_technical_indicators, (4) arus ETF dan narasi pasar, (5) skenario bullish
-dan bearish, (6) penilaian risiko, (7) rencana tindakan.
+via get_crypto_market_data dan indikator via get_technical_indicators, (4) arus ETF
+dan narasi pasar, (5) skenario bullish dan bearish, (6) penilaian risiko, (7) rencana
+tindakan.
 Gunakan ketiga tool.""",
 }
 
@@ -123,7 +128,9 @@ ditambahkan otomatis oleh sistem dari jejak tool yang sebenarnya.
 
 
 def build_system_prompt(category: str, current_date: str) -> str:
-    """Compose the system prompt. ``safe_substitute`` tolerates stray braces/dollar signs."""
+    """Compose the system prompt.
+    ``safe_substitute`` tolerates stray braces/dollar signs.
+    """
     guidance = CATEGORY_GUIDANCE.get(category, CATEGORY_GUIDANCE[DEFAULT_CATEGORY])
     body = Template(SYSTEM_PROMPT_TEMPLATE).safe_substitute(
         current_date=current_date,

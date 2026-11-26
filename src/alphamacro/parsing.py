@@ -156,7 +156,9 @@ def collect_observations(
 
 
 def collect_tool_outputs(messages: Iterable[Any]) -> list[str]:
-    """Raw text of every successful tool result (ground truth for numeric verification)."""
+    """Raw text of every successful tool result.
+    Used as ground truth for numeric verification.
+    """
     outputs: list[str] = []
     for message in messages:
         if getattr(message, "type", None) != "tool":

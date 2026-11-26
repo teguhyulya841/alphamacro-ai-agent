@@ -63,7 +63,9 @@ def build_production_app() -> FastAPI:
     chat_id = os.getenv("TELEGRAM_CHAT_ID", "").strip() or None
     delivery = TelegramDeliveryClient(bot_token) if bot_token else None
 
-    assert engine.market_client is not None
+    if engine.market_client is None:
+        raise RuntimeError("market_client is required to initialize ResearchScheduler")
+
     scheduler = ResearchScheduler(
         engine=engine,
         market_client=engine.market_client,

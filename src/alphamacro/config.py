@@ -36,7 +36,8 @@ def _empty_to_none(value: Any) -> Any:
 
 
 def _raise_config_error(exc: ValidationError, env_names: dict[str, str]) -> NoReturn:
-    """Convert Pydantic ValidationError into ConfigurationError without echoing inputs."""
+    """Convert Pydantic ValidationError into ConfigurationError
+    Does not echo inputs."""
     missing: list[str] = []
     details: list[str] = []
     for err in exc.errors():

@@ -1,4 +1,5 @@
-"""Tests for Milestone 0 seams: Clock, Protocols, Pydantic DTOs, and SecretStr settings."""
+"""Tests for Milestone 0 seams: Clock, Protocols, Pydantic DTOs,
+and SecretStr settings."""
 
 from __future__ import annotations
 

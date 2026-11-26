@@ -42,9 +42,10 @@ WELCOME_HTML = (
 
 ABOUT_HTML = (
     f"<b>AlphaMacro-Crypto</b> v{__version__}\n"
-    "Riset makroekonomi &amp; kripto berbasis AI (router + agent + data CoinGecko &amp; web).\n\n"
+    "Riset makroekonomi &amp; kripto berbasis AI"
+    "(router + agent + data CoinGecko &amp; web).\n\n"
     "<b>Privasi:</b> isi pesan Anda tidak disimpan oleh bot ini, tetapi diteruskan ke "
-    "penyedia AI (Google Gemini) dan pencarian web (Tavily) untuk menghasilkan jawaban.\n\n"
+    "penyedia AI dan pencarian web (Tavily) untuk menghasilkan jawaban.\n\n"
     "<b>Disclaimer:</b> Laporan dihasilkan AI, dapat mengandung kesalahan, dan bukan "
     "nasihat investasi. Aset kripto berisiko tinggi."
 )
@@ -229,7 +230,8 @@ class BotController:
         if len(query) > self._max_query_chars:
             self._send_html(
                 chat_id,
-                f"Pertanyaan terlalu panjang (maksimal {self._max_query_chars} karakter).",
+                f"Pertanyaan terlalu panjang "
+                f"(maksimal {self._max_query_chars} karakter).",
             )
             return
 

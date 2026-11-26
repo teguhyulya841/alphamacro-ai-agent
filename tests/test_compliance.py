@@ -7,7 +7,10 @@ from alphamacro.exceptions import PolicyViolationError
 GOOGLE_KEY = "AI" + "za" + "A" * 35
 TELEGRAM_TOKEN = "123456789" + ":" + "B" * 35
 GITHUB_TOKEN = "gh" + "p_" + "C" * 36
-SEED = "abandon ability able about above absent absorb abstract absurd abuse access accident"
+SEED = (
+    "abandon ability able about above absent absorb abstract absurd abuse access "
+    "accident"
+)
 HEX64 = "a" * 64
 VALID_VISA = "4111 1111 1111 1111"
 
@@ -33,7 +36,10 @@ def test_hex_txid_without_privkey_context_is_allowed():
 
 
 def test_normal_indonesian_question_is_not_blocked():
-    query = "dampak cpi terhadap bitcoin minggu ini bagaimana menurut analisis anda sekarang"
+    query = (
+        "dampak cpi terhadap bitcoin minggu ini bagaimana menurut analisis anda "
+        "sekarang"
+    )    
     assert scan_input(query).redacted_query == query
 
 

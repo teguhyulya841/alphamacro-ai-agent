@@ -1,9 +1,9 @@
 """Input and output guardrails for a financial-research product.
 
-Input: block secrets (API keys, private keys, seed phrases), redact PII, flag prompt injection.
-Output: flag guarantee language, personalised buy/sell instructions and unhedged price targets.
-All checks are pattern-based heuristics; they reduce risk, they do not eliminate it.
-"""
+Input: block secrets (API keys, private keys, seed phrases), redact PII, flag prompt
+injection. Output: flag guarantee language, personalised buy/sell instructions and
+unhedged price targets. All checks are pattern-based heuristics; they reduce risk, they
+do not eliminate it."""
 
 from __future__ import annotations
 
@@ -13,10 +13,10 @@ from dataclasses import dataclass, field
 from alphamacro.exceptions import PolicyViolationError
 
 BLOCKED_INPUT_MESSAGE = (
-    "Pesan Anda tampaknya berisi kunci rahasia (API key, private key, atau seed phrase). "
-    "Demi keamanan, pesan tidak diproses dan tidak dikirim ke penyedia AI. Hapus pesan itu dari "
-    "chat dan jangan pernah membagikan kunci tersebut. Jika sudah terlanjur terbuka, anggap "
-    "kunci itu bocor dan ganti segera."
+    "Pesan Anda tampaknya berisi kunci rahasia (API key, private key, atau seed"
+    "phrase). Demi keamanan, pesan tidak diproses dan tidak dikirim ke penyedia AI."
+    "Hapus pesan itu dari chat dan jangan pernah membagikan kunci tersebut."
+    "Jika sudah terlanjur terbuka, anggap kunci itu bocor dan ganti segera."
 )
 
 _SEED_KEYWORDS_RE = re.compile(
@@ -78,7 +78,8 @@ def _luhn_valid(digits: str) -> bool:
 
 
 def scan_input(query: str) -> InputScan:
-    """Raise :class:`PolicyViolationError` for secrets; otherwise redact PII and flag risks."""
+    """Raise :class:`PolicyViolationError` for secrets.
+    otherwise redact PII and flag risks."""
     if _SEED_KEYWORDS_RE.search(query) and _WORD_RUN_RE.search(query):
         raise PolicyViolationError(BLOCKED_INPUT_MESSAGE)
     if _PRIVKEY_KEYWORD_RE.search(query) and _HEX64_RE.search(query):
@@ -115,7 +116,8 @@ def scan_input(query: str) -> InputScan:
         )
     if _INJECTION_RE.search(query):
         flags.append(
-            "Pola prompt-injection terdeteksi pada pertanyaan; diproses dengan kewaspadaan."
+            "Pola prompt-injection terdeteksi pada pertanyaan; diproses dengan"
+            "kewaspadaan."
         )
     return InputScan(redacted_query=redacted, flags=flags)
 

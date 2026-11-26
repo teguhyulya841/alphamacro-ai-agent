@@ -14,7 +14,7 @@ from alphamacro.quant import indicators as ind
 # Periods per year used to annualise volatility for each timeframe.
 PERIODS_PER_YEAR = {"daily": 365, "4h": 365 * 6}
 
-# Conventional (textbook) thresholds. They describe state, they do not predict direction.
+# Conventional thresholds. They describe state; they do not predict direction
 RSI_OVERBOUGHT = 70.0
 RSI_OVERSOLD = 30.0
 
@@ -63,7 +63,9 @@ def build_snapshot(
     highs: Sequence[float] | None = None,
     lows: Sequence[float] | None = None,
 ) -> dict[str, Any]:
-    """Compute indicators. ``highs``/``lows`` enable ATR and swing support/resistance."""
+    """Compute indicators.
+    ``highs``/``lows`` enable ATR and swing support/resistance.
+    """
     if len(closes) < 30:
         raise ValueError(
             "Data harga tidak cukup (minimal 30 titik) untuk menghitung indikator."
@@ -167,7 +169,8 @@ def _fmt_price(value: float | None) -> str:
 
 
 def format_snapshot(snapshot: dict[str, Any], retrieved_at: str) -> str:
-    """Plain-text rendering for the LLM; every number here is a computed, citable fact."""
+    """Plain-text rendering for the LLM.
+    Every number here is a computed, citable fact."""
     s = snapshot
     return (
         f"TECHNICAL INDICATORS (computed from market data): {s['coin_id']} | "
@@ -188,7 +191,8 @@ def format_snapshot(snapshot: dict[str, Any], retrieved_at: str) -> str:
         f"Middle: {_fmt_price(s['bollinger_middle'])} | "
         f"Lower: {_fmt_price(s['bollinger_lower'])}\n"
         f"Bollinger %B: {_fmt(s['percent_b'], 3)}\n"
-        f"ATR 14: {_fmt_price(s['atr14'])} ({_fmt(s['atr14_pct_of_price'])}% of price)\n"
+        f"ATR 14: {_fmt_price(s['atr14'])}"
+        f"({_fmt(s['atr14_pct_of_price'])}% of price)\n"
         f"Nearest Swing Support: {_fmt_price(s['nearest_support'])}\n"
         f"Nearest Swing Resistance: {_fmt_price(s['nearest_resistance'])}\n"
         f"Annualized Realized Volatility: "

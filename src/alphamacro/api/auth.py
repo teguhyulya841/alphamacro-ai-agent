@@ -1,4 +1,4 @@
-"""API-key utilities. Keys are shown once at creation; only SHA-256 hashes are stored."""
+"""API-key utilities. Keys are shown once at creation; only hashes stored."""
 
 from __future__ import annotations
 
@@ -22,7 +22,8 @@ def generate_key() -> tuple[str, str]:
 
 
 def verify_key(provided: str | None, hashes: Mapping[str, str]) -> str | None:
-    """Return the key *name* if ``provided`` matches a stored hash (constant-time compare)."""
+    """Return the key *name* if ``provided`` matches a stored hash
+    User constant-time compare."""
     if not provided:
         return None
     digest = hash_key(provided)

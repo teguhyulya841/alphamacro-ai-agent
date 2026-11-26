@@ -1,8 +1,8 @@
 """Numeric grounding verification & provenance-based confidence scoring.
 
 Grounding checks that numbers in the report appear in raw tool outputs or structured
-Observation artifacts (within rounding tolerance). Confidence combines numeric grounding,
-observation freshness/staleness, and multi-venue spot price consistency.
+Observation artifacts (within rounding tolerance). Confidence combines numeric
+grounding, observation freshness/staleness, and multi-venue spot price consistency.
 """
 
 from __future__ import annotations
@@ -65,7 +65,8 @@ class NumberMention:
 
 
 def _parse_number(num: str) -> list[tuple[float, int]]:
-    """Return possible (value, decimals) readings; handles US and Indonesian separators."""
+    """Return possible (value, decimals) readings.
+    handles US and Indonesian separators."""
     has_dot, has_comma = "." in num, "," in num
     if has_dot and has_comma:
         dec_sep = "." if num.rfind(".") > num.rfind(",") else ","

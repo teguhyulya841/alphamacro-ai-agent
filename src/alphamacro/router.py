@@ -38,7 +38,9 @@ class IntentRouter:
                 exc,
                 DEFAULT_CATEGORY,
             )
-            return RouteQuery(
-                category=DEFAULT_CATEGORY,  # type: ignore[arg-type]
-                reasoning="Fallback otomatis: router tidak dapat mengklasifikasikan pertanyaan.",
-            )
+        return RouteQuery(
+            category=DEFAULT_CATEGORY,  # type: ignore[arg-type]
+            reasoning=(
+                "Fallback otomatis: router tidak dapat mengklasifikasikan pertanyaan."
+            ),
+        )

@@ -122,7 +122,8 @@ async def test_market_tool_emits_observation_and_downgrades_confidence_on_stale(
                     "messages": [
                         stale_msg,
                         AIMessage(
-                            content="Harga Bitcoin berada di $98,500 dengan kenaikan 2.4%."
+                            content="Harga Bitcoin berada di $98,500"
+                            "dengan kenaikan 2.4%."
                         ),
                     ]
                 }

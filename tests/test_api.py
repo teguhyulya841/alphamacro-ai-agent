@@ -32,7 +32,9 @@ class FakeEngine:
             sources=[Source("A", "https://a.com")],
             request_id=kwargs.get("request_id", ""),
             model="m",
-            grounding=GroundingReport(total=2, verified=1, score=0.5, ungrounded=["9.9%"]),
+            grounding=GroundingReport(total=2, verified=1, score=0.5,
+            ungrounded=["9.9%"]
+            ),
             compliance_flags=["flag"],
         )  # fmt: skip
 

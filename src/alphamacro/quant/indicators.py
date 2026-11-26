@@ -2,10 +2,10 @@
 
 Conventions
 -----------
-* Every series function returns a list the same length as its input, with ``None`` during the
-  warm-up period, so indices stay aligned with the input data.
-* RSI/ATR use Wilder's smoothing; EMA is seeded with the SMA of the first ``period`` values
-  (the most common charting-package convention).
+* Every series function returns a list the same length as its input, with ``None``
+during the warm-up period, so indices stay aligned with the input data.
+* RSI/ATR use Wilder's smoothing; EMA is seeded with the SMA of the first ``period``
+values (the most common charting-package convention).
 """
 
 from __future__ import annotations
@@ -153,8 +153,9 @@ def atr(
 def swing_points(
     highs: Sequence[float], lows: Sequence[float], window: int = 3
 ) -> tuple[list[float], list[float]]:
-    """Local extrema: a swing high exceeds the ``window`` bars before it and is not exceeded
-    by the ``window`` bars after it (mirror logic for swing lows). Returns (highs, lows)."""
+    """Local extrema: a swing high exceeds the ``window`` bars before it and is not
+    exceeded by the ``window`` bars after it (mirror logic for swing lows). Returns
+    (highs, lows)."""
     if window < 1:
         raise ValueError("window must be >= 1")
     swing_highs: list[float] = []
@@ -174,7 +175,8 @@ def swing_points(
 def nearest_levels(
     price: float, swing_highs: Sequence[float], swing_lows: Sequence[float]
 ) -> tuple[float | None, float | None]:
-    """Return ``(nearest_support_below, nearest_resistance_above)`` among swing points."""
+    """Return ``(nearest_support_below, nearest_resistance_above)`` among swing
+    points."""
     supports = [x for x in swing_lows if x < price]
     resistances = [x for x in swing_highs if x > price]
     return (

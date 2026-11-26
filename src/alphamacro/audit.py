@@ -1,9 +1,10 @@
 """Tamper-evident audit log (JSON Lines with a SHA-256 hash chain).
 
-Each record embeds the hash of the previous record, so editing or deleting any record in the
-middle of the file breaks verification. Truncating the *tail* is only detectable if the latest
-hash (printed by ``alphamacro-audit verify``) is anchored somewhere else (ticket, WORM storage...).
-By default only a hash of the query is stored, never its text, and users are pseudonymised.
+Each record embeds the hash of the previous record, so editing or deleting any record
+in the middle of the file breaks verification. Truncating the *tail* is only
+detectable if the latest hash (printed by ``alphamacro-audit verify``) is anchored
+somewhere else (ticket, WORM storage...). By default only a hash of the query is
+stored, never its text, and users are pseudonymised.
 """
 
 from __future__ import annotations

@@ -140,7 +140,8 @@ def _strip_html_tags(text: str) -> str:
 
 
 def split_telegram_message(text: str, max_len: int = _TELEGRAM_MAX_CHARS) -> list[str]:
-    """Split long messages cleanly on paragraph/line boundaries under Telegram limits."""
+    """Split long messages cleanly on paragraph/line boundaries.
+    Keeps each chunk under Telegram limits."""
     cleaned = text.strip()
     if not cleaned:
         return []
@@ -207,7 +208,8 @@ def format_digest_message(result: AgentResult) -> str:
 
     header = [
         "📊 <b>ALPHA INTELLIGENCE BRIEF</b>",
-        f"🕒 <i>{html.escape(result.analysis_time)}</i> • Mode: <code>{html.escape(result.category)}</code>{conf_badge}",
+        f"🕒 <i>{html.escape(result.analysis_time)}</i> • Mode: "
+        f"<code>{html.escape(result.category)}</code>{conf_badge}"
         "━━━━━━━━━━━━━━━━━━━━",
         "",
     ]
@@ -226,7 +228,8 @@ def format_digest_message(result: AgentResult) -> str:
     if result.sources:
         top_sources = result.sources[:4]
         links = " • ".join(
-            f'<a href="{html.escape(s.url, quote=True)}">{html.escape(s.title[:38])}</a>'
+            f'<a href="{html.escape(s.url, quote=True)}">'
+            f"{html.escape(s.title[:38])}</a>"
             for s in top_sources
         )
         footer.append(f"🔗 <b>Sumber:</b> {links}")
