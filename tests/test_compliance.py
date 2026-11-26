@@ -39,7 +39,7 @@ def test_normal_indonesian_question_is_not_blocked():
     query = (
         "dampak cpi terhadap bitcoin minggu ini bagaimana menurut analisis anda "
         "sekarang"
-    )    
+    )
     assert scan_input(query).redacted_query == query
 
 
