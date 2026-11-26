@@ -7,7 +7,7 @@ name = "alphamacro-crypto"
 dynamic = ["version"]
 description = "Verifiable AI macro & crypto research: CLI, Telegram bot and REST API."
 readme = "README.md"
-requires-python = ">=3.12"
+requires-python = ">=3.10"
 license = { text = "MIT" }
 authors = [{ name = "Your Name" }]
 keywords = ["crypto", "macroeconomics", "langchain", "gemini", "telegram-bot", "ai-agent"]
