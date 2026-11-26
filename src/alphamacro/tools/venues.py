@@ -6,7 +6,6 @@ import asyncio
 import logging
 import statistics
 from collections.abc import Sequence
-from typing import Any
 
 import httpx
 
@@ -112,9 +111,14 @@ class BinanceSpotClient:
                 fetched_at = self._clock.now()
                 freshness = Freshness.FRESH
 
-            if not isinstance(payload, dict) or "price" not in payload:
+            if not isinstance(payload, dict):
                 return None
-            price = float(payload["price"])
+            raw_price = payload.get("price")
+            if not isinstance(raw_price, (int, float, str)) or isinstance(
+                raw_price, bool
+            ):
+                return None
+            price = float(raw_price)
             if price <= 0:
                 return None
             now = self._clock.now()
@@ -196,9 +200,14 @@ class CoinbaseSpotClient:
                 freshness = Freshness.FRESH
 
             data = payload.get("data") if isinstance(payload, dict) else None
-            if not isinstance(data, dict) or "amount" not in data:
+            if not isinstance(data, dict):
                 return None
-            price = float(data["amount"])
+            raw_amount = data.get("amount")
+            if not isinstance(raw_amount, (int, float, str)) or isinstance(
+                raw_amount, bool
+            ):
+                return None
+            price = float(raw_amount)
             if price <= 0:
                 return None
             now = self._clock.now()
@@ -297,7 +306,7 @@ class MultiVenueValidator:
         self._threshold_pct = max_spread_threshold_pct
 
     async def fetch_quotes(self, coin_id: str) -> list[VenueQuote]:
-        results: list[Any] = await asyncio.gather(
+        results = await asyncio.gather(
             self._binance.get_quote(coin_id),
             self._coinbase.get_quote(coin_id),
             return_exceptions=True,

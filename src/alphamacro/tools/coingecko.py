@@ -281,8 +281,10 @@ class AsyncCoinGeckoClient:
             raise MarketDataError("Format respons batch markets CoinGecko tidak valid.")
         by_id: dict[str, dict[str, Any]] = {}
         for item in payload:
-            if isinstance(item, dict) and isinstance(item.get("id"), str):
-                by_id[item["id"]] = dict(item)
+            if isinstance(item, dict):
+                coin_id = item.get("id")
+                if isinstance(coin_id, str):
+                    by_id[coin_id] = dict(item)
         return by_id
 
     async def get_daily_closes_with_provenance(
@@ -300,7 +302,12 @@ class AsyncCoinGeckoClient:
         if not isinstance(rows, list) or not rows:
             raise MarketDataError("Data harga historis tidak tersedia.")
         try:
-            closes = [float(row[1]) for row in rows if isinstance(row, list)]
+            closes = [
+                float(row[1])  # type: ignore[arg-type]
+                for row in rows
+                if isinstance(row, list)
+            ]
+
         except (IndexError, TypeError, ValueError) as exc:
             raise MarketDataError("Format data harga historis tidak dikenali.") from exc
         now = self._clock.now()
@@ -334,7 +341,9 @@ class AsyncCoinGeckoClient:
             raise MarketDataError("Data OHLC tidak tersedia.")
         try:
             rows = [
-                [float(x) for x in row[:5]] for row in payload if isinstance(row, list)
+                [float(x) for x in row[:5]]  # type: ignore[arg-type]
+                for row in payload
+                if isinstance(row, list)
             ]
         except (TypeError, ValueError) as exc:
             raise MarketDataError("Format data OHLC tidak dikenali.") from exc
