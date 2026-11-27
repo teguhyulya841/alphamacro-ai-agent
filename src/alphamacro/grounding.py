@@ -56,6 +56,13 @@ _MULTIPLIERS = {
     "t": 1e12, "triliun": 1e12, "trillion": 1e12,
 }  # fmt: skip
 
+_SINGLE_DOT_THOUSANDS_RE = re.compile(r"^\d{1,3}\.\d{3}$")
+_MULTI_DOT_THOUSANDS_RE = re.compile(r"^\d{1,3}(?:\.\d{3}){1,}$")
+_MULTI_COMMA_THOUSANDS_RE = re.compile(r"^\d{1,3}(?:,\d{3}){1,}$")
+_US_DECIMAL_RE = re.compile(r"^\d+(?:,\d{3})*\.\d+$")
+_ID_DECIMAL_RE = re.compile(r"^\d+(?:\.\d{3})*,\d+$")
+_PLAIN_INT_RE = re.compile(r"^\d+$")
+
 
 @dataclass(frozen=True)
 class NumberMention:
@@ -65,24 +72,65 @@ class NumberMention:
 
 
 def _parse_number(num: str) -> list[tuple[float, int]]:
-    """Return possible (value, decimals) readings.
-    handles US and Indonesian separators."""
-    has_dot, has_comma = "." in num, "," in num
-    if has_dot and has_comma:
-        dec_sep = "." if num.rfind(".") > num.rfind(",") else ","
-        thousands = "," if dec_sep == "." else "."
-        int_part, _, frac = num.rpartition(dec_sep)
-        return [(float(int_part.replace(thousands, "") + "." + frac), len(frac))]
-    sep = "." if has_dot else "," if has_comma else None
-    if sep is None:
-        return [(float(num), 0)]
-    parts = num.split(sep)
-    if len(parts) > 2:
-        return [(float("".join(parts)), 0)]
-    int_part, frac = parts
-    if len(frac) == 3 and int_part != "0" and len(int_part) <= 3:
-        return [(float(int_part + frac), 0), (float(f"{int_part}.{frac}"), 3)]
-    return [(float(f"{int_part}.{frac}"), len(frac))]
+    """Return (value, decimals) readings for US and Indonesian formats."""
+    cleaned = num.strip().replace(" ", "")
+    if not cleaned:
+        return []
+
+    has_dot = "." in cleaned
+    has_comma = "," in cleaned
+
+    try:
+        if has_dot and has_comma:
+            if _US_DECIMAL_RE.match(cleaned):
+                int_part, frac_part = cleaned.rsplit(".", 1)
+                val = float(int_part.replace(",", "") + "." + frac_part)
+                return [(val, len(frac_part))]
+            if _ID_DECIMAL_RE.match(cleaned):
+                int_part, frac_part = cleaned.rsplit(",", 1)
+                val = float(int_part.replace(".", "") + "." + frac_part)
+                return [(val, len(frac_part))]
+
+            last_dot = cleaned.rfind(".")
+            last_comma = cleaned.rfind(",")
+            sep = "." if last_dot > last_comma else ","
+            int_part, frac_part = cleaned.rsplit(sep, 1)
+            clean_int = int_part.replace(".", "").replace(",", "")
+            clean_frac = frac_part.replace(".", "").replace(",", "")
+            candidate = f"{clean_int}.{clean_frac}" if clean_frac else clean_int
+            return [(float(candidate), len(clean_frac))]
+
+        if has_comma:
+            if _MULTI_COMMA_THOUSANDS_RE.match(cleaned):
+                return [(float(cleaned.replace(",", "")), 0)]
+            parts = cleaned.split(",")
+            if len(parts) == 2 and parts[0].isdigit() and parts[1].isdigit():
+                if len(parts[1]) == 3:
+                    return [
+                        (float(f"{parts[0]}.{parts[1]}"), 3),
+                        (float(f"{parts[0]}{parts[1]}"), 0),
+                    ]
+                if len(parts[1]) in (1, 2):
+                    return [(float(f"{parts[0]}.{parts[1]}"), len(parts[1]))]
+            return [(float(cleaned.replace(",", "")), 0)]
+
+        if has_dot:
+            if _SINGLE_DOT_THOUSANDS_RE.match(cleaned):
+                int_part, frac_part = cleaned.split(".", 1)
+                return [
+                    (float(cleaned), 3),
+                    (float(f"{int_part}{frac_part}"), 0),
+                ]
+
+            if _MULTI_DOT_THOUSANDS_RE.match(cleaned):
+                return [(float(cleaned.replace(".", "")), 0)]
+
+            parts = cleaned.split(".")
+            if len(parts) == 2 and parts[0].isdigit() and parts[1].isdigit():
+                return [(float(cleaned), len(parts[1]))]
+        return [(float(cleaned), 0)]
+    except ValueError:
+        return []
 
 
 def _clean(text: str) -> str:
