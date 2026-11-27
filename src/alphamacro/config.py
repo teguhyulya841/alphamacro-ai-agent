@@ -108,11 +108,27 @@ class Settings(BaseSettings):
     google_api_key: SecretStr
     tavily_api_key: SecretStr
     gemini_model: str = DEFAULT_GEMINI_MODEL
+    # Fallback model for the last attempt when the primary model is overloaded.
+    # Leave empty (default) to disable fallback.
+    gemini_fallback_model: Annotated[str | None, BeforeValidator(_empty_to_none)] = None
     coingecko_api_key: Annotated[SecretStr | None, BeforeValidator(_empty_to_none)] = (
         None
     )
+    # Legacy: kept so existing .env files keep working. No longer used by the
+    # engine; use agent_llm_timeout / router_llm_timeout instead.
     llm_timeout: int = Field(default=60, ge=1)
     llm_max_retries: int = Field(default=2, ge=0)
+    # Per-call model timeout for the research agent (seconds).
+    agent_llm_timeout: int = Field(default=120, ge=1)
+    # Per-call model timeout for the router (seconds). Keep it short.
+    router_llm_timeout: int = Field(default=20, ge=1)
+    # Max agent attempts (the last one may use the fallback model).
+    agent_max_attempts: int = Field(default=3, ge=1, le=10)
+    # Total time budget across all agent attempts for one request (seconds).
+    agent_overall_timeout: int = Field(default=240, ge=10)
+    # Tavily settings. "basic" with fewer results means smaller, faster context.
+    tavily_max_results: int = Field(default=5, ge=1, le=20)
+    tavily_search_depth: Literal["basic", "advanced"] = "advanced"
     http_timeout: int = Field(default=15, ge=1)
     cache_ttl: int = Field(
         default=60,
@@ -174,6 +190,11 @@ class Settings(BaseSettings):
         if raw not in {"text", "json"}:
             raise ValueError("LOG_FORMAT must be 'text' or 'json'.")
         return raw
+
+    @field_validator("tavily_search_depth", mode="before")
+    @classmethod
+    def _normalize_tavily_depth(cls, value: Any) -> Any:
+        return value.strip().lower() if isinstance(value, str) else value
 
     @model_validator(mode="after")
     def _validate_audit_salt(self) -> Self:

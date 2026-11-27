@@ -5,6 +5,8 @@ from __future__ import annotations
 import asyncio
 import inspect
 import logging
+import random
+import re
 import time
 import uuid
 from collections.abc import Callable, Sequence
@@ -62,13 +64,35 @@ logger = logging.getLogger(__name__)
 
 AgentFactory = Callable[[str, str], Any]
 
+# Transient errors (overload, timeout, rate limit) that are safe to retry.
+_TRANSIENT_RE = re.compile(
+    r"\b(429|500|502|503|504)\b"
+    r"|UNAVAILABLE|DEADLINE_EXCEEDED|RESOURCE_EXHAUSTED|overloaded",
+    re.IGNORECASE,
+)
+
+
+def _is_transient(exc: BaseException) -> bool:
+    """Return True if the error (or any cause in its chain) is retryable."""
+    seen: set[int] = set()
+    cur: BaseException | None = exc
+    while cur is not None and id(cur) not in seen:
+        seen.add(id(cur))
+        if isinstance(cur, TimeoutError):
+            return True
+        if _TRANSIENT_RE.search(f"{type(cur).__name__}: {cur}"):
+            return True
+        cur = cur.__cause__ or cur.__context__
+    return False
+
 
 class AlphaMacroEngine:
     """Async-first orchestration engine with a thread-safe sync bridge for CLI/bot.
 
     Pipeline per request:
         input guard (secrets blocked, PII redacted) -> intent router -> async tool agent
-        -> provenance & multi-venue validation + grounding + confidence -> audit.
+        (retry + model fallback) -> provenance & multi-venue validation + grounding
+        + confidence -> audit.
     """
 
     def __init__(
@@ -96,12 +120,45 @@ class AlphaMacroEngine:
                 StateSettings(backend=StateBackend.MEMORY), clock=self.clock
             )
 
-        self.llm = llm if llm is not None else self._default_llm()
-        self.router = (
-            router
-            if router is not None
-            else IntentRouter(self.llm.with_structured_output(RouteQuery))
+        llm_injected = llm is not None
+
+        # Agent LLM: long timeout, since multi-tool research takes time.
+        self.llm = (
+            llm
+            if llm is not None
+            else self._make_llm(
+                settings.gemini_model,
+                timeout=settings.agent_llm_timeout,
+                max_retries=settings.llm_max_retries,
+            )
         )
+
+        # Router: must be fast and cheap, so it gets a short, separate timeout.
+        if router is not None:
+            self.router = router
+        else:
+            router_llm = (
+                self.llm
+                if llm_injected
+                else self._make_llm(
+                    settings.gemini_model,
+                    timeout=settings.router_llm_timeout,
+                    max_retries=1,
+                )
+            )
+            self.router = IntentRouter(router_llm.with_structured_output(RouteQuery))
+
+        # Fallback model for the last attempt if the primary model keeps failing.
+        self.fallback_llm: Any | None = (
+            self._make_llm(
+                settings.gemini_fallback_model,
+                timeout=settings.agent_llm_timeout,
+                max_retries=1,
+            )
+            if settings.gemini_fallback_model and not llm_injected
+            else None
+        )
+
         self.market_client: AsyncCoinGeckoClient | None = None
         self.venue_validator: MultiVenueValidator | None = venue_validator
         self.tools = list(tools) if tools is not None else self._default_tools()
@@ -111,12 +168,12 @@ class AlphaMacroEngine:
 
     # -- default wiring ---------------------------------------------------
 
-    def _default_llm(self) -> Any:
+    def _make_llm(self, model: str, *, timeout: float, max_retries: int) -> Any:
         return ChatGoogleGenerativeAI(
-            model=self.settings.gemini_model,
+            model=model,
             google_api_key=self.settings.google_api_key.get_secret_value(),
-            timeout=self.settings.llm_timeout,
-            max_retries=self.settings.llm_max_retries,
+            timeout=timeout,
+            max_retries=max_retries,
         )
 
     def _default_tools(self) -> list[Any]:
@@ -158,9 +215,9 @@ class AlphaMacroEngine:
             ),
             build_async_technical_tool(self.market_client),
             TavilySearch(
-                max_results=5,
+                max_results=self.settings.tavily_max_results,
                 topic="finance",
-                search_depth="advanced",
+                search_depth=self.settings.tavily_search_depth,
                 tavily_api_key=self.settings.tavily_api_key.get_secret_value(),
             ),
         ]
@@ -179,9 +236,11 @@ class AlphaMacroEngine:
             store_query_text=self.settings.audit_store_query_text,
         )
 
-    def _build_agent(self, category: str, current_date: str) -> Any:
+    def _build_agent(
+        self, category: str, current_date: str, llm: Any | None = None
+    ) -> Any:
         return create_agent(
-            model=self.llm,
+            model=llm if llm is not None else self.llm,
             tools=self.tools,
             system_prompt=build_system_prompt(category, current_date),
         )
@@ -287,6 +346,86 @@ class AlphaMacroEngine:
             return await ainvoke(payload, config=config)
         return await asyncio.to_thread(agent.invoke, payload, config=config)
 
+    async def _run_agent_resilient(
+        self,
+        category: str,
+        now: str,
+        query: str,
+        request_id: str,
+        event: dict[str, Any],
+    ) -> Any:
+        """Run the agent with retry (backoff + jitter) and model fallback.
+
+        - Only transient errors (503/504/429/timeout) are retried.
+        - The last attempt uses ``fallback_llm`` when configured.
+        - All attempts together are bounded by ``agent_overall_timeout``.
+        """
+        max_attempts = max(1, self.settings.agent_max_attempts)
+        overall_timeout = self.settings.agent_overall_timeout
+        deadline = time.monotonic() + overall_timeout
+        last_exc: Exception | None = None
+
+        for attempt in range(1, max_attempts + 1):
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                break
+
+            use_fallback = (
+                attempt == max_attempts
+                and attempt > 1
+                and self.fallback_llm is not None
+            )
+            try:
+                if use_fallback:
+                    logger.warning(
+                        "Switching to fallback model request_id=%s",
+                        request_id,
+                    )
+                    event["fallback_used"] = True
+                    agent = self._build_agent(category, now, llm=self.fallback_llm)
+                else:
+                    agent = self._agent_factory(category, now)
+                return await asyncio.wait_for(
+                    self._invoke_agent(agent, query), timeout=remaining
+                )
+            except Exception as exc:
+                last_exc = exc
+                event["agent_attempts"] = attempt
+                if not _is_transient(exc) or attempt == max_attempts:
+                    break
+                jitter = random.uniform(0, 1)  # noqa: S311
+                delay = min(2**attempt, 20) + jitter
+                if time.monotonic() + delay >= deadline:
+                    break
+                logger.warning(
+                    "Transient agent error (attempt %d/%d) request_id=%s: %s; "
+                    "retry in %.1fs",
+                    attempt,
+                    max_attempts,
+                    request_id,
+                    type(exc).__name__,
+                    delay,
+                )
+                await asyncio.sleep(delay)
+
+        if last_exc is None:  # overall deadline expired before the first attempt
+            last_exc = TimeoutError("agent overall timeout")
+
+        logger.error(
+            "Agent execution failed request_id=%s",
+            request_id,
+            exc_info=last_exc,
+        )
+        if _is_transient(last_exc):
+            raise AgentExecutionError(
+                "Layanan model (Gemini) sedang sibuk atau timeout. "
+                "Coba lagi dalam beberapa menit."
+            ) from last_exc
+        raise AgentExecutionError(
+            f"Agent gagal dijalankan ({type(last_exc).__name__}). "
+            "Periksa log untuk detail."
+        ) from last_exc
+
     async def _arun(
         self, query: str, request_id: str, started: float, event: dict[str, Any]
     ) -> AgentResult:
@@ -304,15 +443,9 @@ class AlphaMacroEngine:
         now = now_dt.astimezone(WIB).strftime("%Y-%m-%d %H:%M WIB")
 
         logger.info("Running agent (mode=%s) request_id=%s", route.category, request_id)
-        try:
-            agent = self._agent_factory(route.category, now)
-            response = await self._invoke_agent(agent, query)
-        except Exception as exc:
-            logger.exception("Agent execution failed request_id=%s", request_id)
-            raise AgentExecutionError(
-                f"Agent gagal dijalankan ({type(exc).__name__}). "
-                "Periksa log untuk detail."
-            ) from exc
+        response = await self._run_agent_resilient(
+            route.category, now, query, request_id, event
+        )
 
         messages = response.get("messages", []) if isinstance(response, dict) else []
         report = extract_final_answer(messages)
