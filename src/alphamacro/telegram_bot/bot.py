@@ -47,7 +47,7 @@ def main() -> int:
 
     configure_logging(
         settings.log_level,
-        secrets=(*settings.secrets(), bot_settings.telegram_token.get_secret_value()),
+        secrets=(*settings.secrets(), *bot_settings.secrets()),
         json_logs=settings.log_format == "json",
     )
 
@@ -86,6 +86,7 @@ def main() -> int:
         logger.info("Interrupted by user")
     finally:
         bot.stop_polling()
+        engine.close()
     return 0
 
 

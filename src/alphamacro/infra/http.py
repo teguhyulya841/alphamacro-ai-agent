@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import random
+import re
 from typing import Any
 
 import httpx
@@ -14,6 +15,25 @@ from alphamacro import __version__
 logger = logging.getLogger(__name__)
 
 _RETRYABLE_STATUSES = frozenset({429, 500, 502, 503, 504})
+_TRANSIENT_ERR_RE = re.compile(
+    r"\b(429|500|502|503|504)\b"
+    r"|UNAVAILABLE|DEADLINE_EXCEEDED|RESOURCE_EXHAUSTED|overloaded",
+    re.IGNORECASE,
+)
+
+
+def is_transient_error(exc: BaseException) -> bool:
+    """Return True if ``exc`` (or any exception in its chain) is transient/retryable."""
+    seen: set[int] = set()
+    cur: BaseException | None = exc
+    while cur is not None and id(cur) not in seen:
+        seen.add(id(cur))
+        if isinstance(cur, TimeoutError):
+            return True
+        if _TRANSIENT_ERR_RE.search(f"{type(cur).__name__}: {cur}"):
+            return True
+        cur = cur.__cause__ or cur.__context__
+    return False
 
 
 def create_async_client(

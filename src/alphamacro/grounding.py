@@ -154,7 +154,10 @@ def extract_mentions(text: str) -> list[NumberMention]:
         candidates = tuple(
             (abs(value) * multiplier, 0.5 * 10 ** (-decimals) * multiplier)
             for value, decimals in readings
+            if math.isfinite(value) and math.isfinite(abs(value) * multiplier)
         )
+        if not candidates:
+            continue
 
         plain_int = (
             len(readings) == 1

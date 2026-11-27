@@ -50,6 +50,7 @@ class SqliteDatabase:
             self.path.parent.mkdir(parents=True, exist_ok=True)
             sql = _MIGRATION_0001.read_text(encoding="utf-8")
             async with self.connect() as db:
+                await db.execute("PRAGMA journal_mode=WAL;")
                 await db.executescript(sql)
                 await db.execute(
                     "INSERT OR IGNORE INTO schema_migrations (version, applied_at) "
@@ -74,7 +75,6 @@ class _SqliteConnectionContext:
             timeout=10.0,
             isolation_level=None,
         )
-        await self._conn.execute("PRAGMA journal_mode=WAL;")
         await self._conn.execute("PRAGMA synchronous=NORMAL;")
         await self._conn.execute("PRAGMA busy_timeout=5000;")
         await self._conn.execute("PRAGMA foreign_keys=ON;")
@@ -316,12 +316,13 @@ class SqliteLockManager:
                     )
                     acquired = cursor.rowcount == 1
                     await conn.execute("COMMIT;")
-                    if acquired:
-                        return Lease(name=name, owner=owner, expires_at=expires_at)
-                    return None
                 except Exception:
                     await conn.execute("ROLLBACK;")
                     raise
+                else:
+                    if acquired:
+                        return Lease(name=name, owner=owner, expires_at=expires_at)
+                    return None
         except (aiosqlite.Error, OSError) as exc:
             if self._degraded is DegradedMode.FAIL_CLOSED:
                 raise

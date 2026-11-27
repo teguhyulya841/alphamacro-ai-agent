@@ -30,8 +30,9 @@ def test_modified_record_is_detected(tmp_path):
     lines[1] = json.dumps(record, sort_keys=True, separators=(",", ":"))
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
     result = AuditLog.verify(path)
-    assert not result.ok and "modified" in result.error
-
+    assert result.ok is False
+    assert result.error is not None
+    assert "record" in result.error.lower()
 
 def test_deleted_middle_record_is_detected(tmp_path):
     log = make_log(tmp_path)

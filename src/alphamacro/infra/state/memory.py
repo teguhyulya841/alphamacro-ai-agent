@@ -19,9 +19,16 @@ from alphamacro.ports import Clock
 class MemoryCacheStore:
     """Process-local CacheStore adapter suitable for tests and single-process dev."""
 
-    def __init__(self, clock: Clock, *, prefix: str = "amc:v1:") -> None:
+    def __init__(
+        self,
+        clock: Clock,
+        *,
+        prefix: str = "amc:v1:",
+        max_entries: int = 2048,
+    ) -> None:
         self._clock = clock
         self._prefix = prefix
+        self._max_entries = max(1, max_entries)
         self._data: dict[str, tuple[CacheEntry, float]] = {}
         self._lock = asyncio.Lock()
 
@@ -45,8 +52,20 @@ class MemoryCacheStore:
         full_key = self._full_key(entry.key)
         expires_at_epoch = entry.fetched_at.timestamp() + max(0, retain_s)
         stored = entry.model_copy(update={"key": full_key})
+        now_epoch = self._clock.now().timestamp()
         async with self._lock:
+            self._data.pop(full_key, None)
             self._data[full_key] = (stored, expires_at_epoch)
+            if len(self._data) > self._max_entries:
+                self._evict(now_epoch)
+
+    def _evict(self, now_epoch: float) -> None:
+        expired = [k for k, (_, exp) in self._data.items() if now_epoch > exp]
+        for k in expired:
+            del self._data[k]
+        while len(self._data) > self._max_entries:
+            oldest_key = next(iter(self._data))
+            del self._data[oldest_key]
 
 
 class MemoryRateLimiter:

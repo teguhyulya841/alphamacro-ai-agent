@@ -6,6 +6,7 @@ import argparse
 import json
 import logging
 import sys
+from pathlib import Path
 
 from alphamacro import __version__
 from alphamacro.config import Settings
@@ -48,10 +49,28 @@ def emit(result: AgentResult, as_json: bool, output: str | None) -> None:
         else result.render_markdown()
     )
     if output:
-        with open(output, "w", encoding="utf-8") as fh:
-            fh.write(text + "\n")
+        Path(output).write_text(text + "\n", encoding="utf-8")
         logger.info("Report written to %s", output)
     print(text)
+
+
+def _run_interactive(engine: AlphaMacroEngine, args: argparse.Namespace) -> int:
+    print(f"AlphaMacro-Crypto v{__version__} | model: {engine.settings.gemini_model}")
+    print("Type your question ('exit' to quit).\n")
+    while True:
+        try:
+            query = input("You: ").strip()
+        except EOFError:
+            break
+        if query.lower() in {"exit", "quit", "keluar"}:
+            break
+        if not query:
+            continue
+        try:
+            emit(engine.run(query), args.json, args.output)
+        except (InvalidQueryError, AgentExecutionError) as exc:
+            print(f"\n[!] {exc}\n", file=sys.stderr)
+    return 0
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -70,41 +89,28 @@ def main(argv: list[str] | None = None) -> int:
     )
     engine = AlphaMacroEngine(settings)
 
+    exit_code = 0
     try:
         if args.query:
             emit(engine.run(" ".join(args.query)), args.json, args.output)
-            return 0
-
-        print(f"AlphaMacro-Crypto v{__version__} | model: {settings.gemini_model}")
-        print("Type your question ('exit' to quit).\n")
-        while True:
-            try:
-                query = input("You: ").strip()
-            except EOFError:
-                break
-            if query.lower() in {"exit", "quit", "keluar"}:
-                break
-            if not query:
-                continue
-            try:
-                emit(engine.run(query), args.json, args.output)
-            except (InvalidQueryError, AgentExecutionError) as exc:
-                print(f"\n[!] {exc}\n", file=sys.stderr)
-        return 0
-
+            exit_code = 0
+        else:
+            exit_code = _run_interactive(engine, args)
     except KeyboardInterrupt:
         print("\nInterrupted.", file=sys.stderr)
-        return 130
+        exit_code = 130
     except AlphaMacroError as exc:
         print(f"Error: {exc}", file=sys.stderr)
-        return 1
+        exit_code = 1
     except Exception:
         logger.exception("Unexpected error")
-        return 1
+        exit_code = 1
     finally:
         close_engine = getattr(engine, "close", None)
         if callable(close_engine):
             close_engine()
+
+    return exit_code
 
 
 if __name__ == "__main__":

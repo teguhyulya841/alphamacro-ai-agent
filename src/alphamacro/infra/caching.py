@@ -186,7 +186,7 @@ class CachingFeed:
             )
             if not future.done():
                 future.set_result(result)
-            return result
+            return result  # noqa: TRY300
         except BaseException as exc:
             if not future.done():
                 future.set_exception(exc)

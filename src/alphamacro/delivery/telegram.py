@@ -295,7 +295,7 @@ class TelegramDeliveryClient:
                     await asyncio.sleep(0.3 * (2**attempt))
                     continue
                 response.raise_for_status()
-                return
+                return  # noqa: TRY300
             except httpx.HTTPStatusError as exc:
                 status = exc.response.status_code
                 raise RuntimeError(

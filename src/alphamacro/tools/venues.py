@@ -311,10 +311,9 @@ class MultiVenueValidator:
             self._coinbase.get_quote(coin_id),
             return_exceptions=True,
         )
-        quotes: list[VenueQuote] = []
-        for item in results:
-            if isinstance(item, VenueQuote):
-                quotes.append(item)
+        quotes: list[VenueQuote] = [
+            item for item in results if isinstance(item, VenueQuote)
+        ]
         return quotes
 
     async def cross_validate(

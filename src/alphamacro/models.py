@@ -393,7 +393,7 @@ class AgentResult(BaseModel):
             parts += [
                 "",
                 "## Verifikasi Numerik",
-                f"{g.verified} dari {g.total} angka dalam laporan cocok dengan"
+                f"{g.verified} dari {g.total} angka dalam laporan cocok dengan "
                 f"data tool (skor {g.score:.0%}).",
             ]
             if g.ungrounded:

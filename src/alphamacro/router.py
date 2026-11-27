@@ -1,24 +1,20 @@
-"""Intent router with retry and a safe fallback."""
+"""Intent router with retry (sync + async) and a safe fallback."""
 
 from __future__ import annotations
 
+import asyncio
+import inspect
 import logging
-import re
 import time
 from collections.abc import Sequence
 from typing import Any
 
 from alphamacro.constants import DEFAULT_CATEGORY
+from alphamacro.infra.http import is_transient_error
 from alphamacro.models import RouteQuery
 from alphamacro.prompts import ROUTER_PROMPT
 
 logger = logging.getLogger(__name__)
-
-_TRANSIENT_RE = re.compile(
-    r"\b(429|500|502|503|504)\b"
-    r"|UNAVAILABLE|DEADLINE_EXCEEDED|RESOURCE_EXHAUSTED|overloaded",
-    re.IGNORECASE,
-)
 
 # (keywords, category name). Example rule; use a category that is valid in
 # your RouteQuery model:
@@ -26,23 +22,10 @@ _TRANSIENT_RE = re.compile(
 KeywordRule = tuple[tuple[str, ...], str]
 
 
-def _is_transient(exc: BaseException) -> bool:
-    seen: set[int] = set()
-    cur: BaseException | None = exc
-    while cur is not None and id(cur) not in seen:
-        seen.add(id(cur))
-        if isinstance(cur, TimeoutError):
-            return True
-        if _TRANSIENT_RE.search(f"{type(cur).__name__}: {cur}"):
-            return True
-        cur = cur.__cause__ or cur.__context__
-    return False
-
-
 class IntentRouter:
     """Classify a query into a research category; never raises.
 
-    Order: LLM (with one retry on transient errors) -> keyword heuristic
+    Order: LLM (with retry on transient errors) -> keyword heuristic
     (optional) -> ``DEFAULT_CATEGORY``.
     """
 
@@ -62,10 +45,11 @@ class IntentRouter:
     def classify(self, query: str) -> RouteQuery:
         started = time.perf_counter()
         last_exc: Exception | None = None
+        messages = [("system", ROUTER_PROMPT), ("human", query)]
 
         for attempt in range(self._retries + 1):
             try:
-                result = self._llm.invoke([("system", ROUTER_PROMPT), ("human", query)])
+                result = self._llm.invoke(messages)
                 if not isinstance(result, RouteQuery):
                     raise TypeError(
                         f"Router output has wrong type: {type(result).__name__}"
@@ -75,10 +59,10 @@ class IntentRouter:
                     result.category,
                     time.perf_counter() - started,
                 )
-                return result
+                return result  # noqa: TRY300
             except Exception as exc:
                 last_exc = exc
-                if attempt < self._retries and _is_transient(exc):
+                if attempt < self._retries and is_transient_error(exc):
                     logger.info(
                         "Router transient error (%s); retry %d/%d",
                         type(exc).__name__,
@@ -89,6 +73,47 @@ class IntentRouter:
                     continue
                 break
 
+        return self._fallback_route(query, last_exc)
+
+    async def aclassify(self, query: str) -> RouteQuery:
+        """Async intent classification using ``ainvoke`` and non-blocking backoff."""
+        started = time.perf_counter()
+        last_exc: Exception | None = None
+        messages = [("system", ROUTER_PROMPT), ("human", query)]
+        ainvoke = getattr(self._llm, "ainvoke", None)
+
+        for attempt in range(self._retries + 1):
+            try:
+                if inspect.iscoroutinefunction(ainvoke):
+                    result = await ainvoke(messages)
+                else:
+                    result = await asyncio.to_thread(self._llm.invoke, messages)
+                if not isinstance(result, RouteQuery):
+                    raise TypeError(
+                        f"Router output has wrong type: {type(result).__name__}"
+                    )
+                logger.info(
+                    "Router -> %s (%.2fs)",
+                    result.category,
+                    time.perf_counter() - started,
+                )
+                return result  # noqa: TRY300
+            except Exception as exc:
+                last_exc = exc
+                if attempt < self._retries and is_transient_error(exc):
+                    logger.info(
+                        "Router transient error (%s); retry %d/%d",
+                        type(exc).__name__,
+                        attempt + 1,
+                        self._retries,
+                    )
+                    await asyncio.sleep(self._retry_delay)
+                    continue
+                break
+
+        return self._fallback_route(query, last_exc)
+
+    def _fallback_route(self, query: str, last_exc: Exception | None) -> RouteQuery:
         heuristic = self._keyword_route(query)
         if heuristic is not None:
             logger.warning(

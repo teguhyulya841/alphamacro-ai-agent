@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import math
 import re
 import threading
 import time
@@ -305,11 +306,12 @@ class AsyncCoinGeckoClient:
             closes = [
                 float(row[1])  # type: ignore[arg-type]
                 for row in rows
-                if isinstance(row, list)
+                if isinstance(row, list) and len(row) >= 2
             ]
-
         except (IndexError, TypeError, ValueError) as exc:
             raise MarketDataError("Format data harga historis tidak dikenali.") from exc
+        if not closes or any(not math.isfinite(c) for c in closes):
+            raise MarketDataError("Data harga historis mengandung nilai tidak valid.")
         now = self._clock.now()
         age_s = max(0.0, (now - cached.fetched_at).total_seconds())
         return ProvenanceData(
@@ -347,7 +349,11 @@ class AsyncCoinGeckoClient:
             ]
         except (TypeError, ValueError) as exc:
             raise MarketDataError("Format data OHLC tidak dikenali.") from exc
-        if len(rows) != len(payload) or any(len(row) != 5 for row in rows):
+        if (
+            len(rows) != len(payload)
+            or any(len(row) != 5 for row in rows)
+            or any(not math.isfinite(v) for row in rows for v in row)
+        ):
             raise MarketDataError("Format data OHLC tidak dikenali.")
         now = self._clock.now()
         age_s = max(0.0, (now - cached.fetched_at).total_seconds())
@@ -407,6 +413,16 @@ class CoinGeckoClient:
         )
         if api_key:
             self._session.headers["x-cg-demo-api-key"] = api_key
+
+    def close(self) -> None:
+        """Close the underlying HTTP session."""
+        self._session.close()
+
+    def __enter__(self) -> CoinGeckoClient:
+        return self
+
+    def __exit__(self, *_: object) -> None:
+        self.close()
 
     @classmethod
     def normalize_coin_id(cls, coin_id: str) -> str:
@@ -565,7 +581,7 @@ def build_async_market_data_tool(
     client: AsyncCoinGeckoClient,
     *,
     validator: MultiVenueValidator | None = None,
-):  # noqa: ANN201
+):
     """Wrap an :class:`AsyncCoinGeckoClient` as an async tool emitting Observation."""
 
     @tool(MARKET_TOOL_NAME, response_format="content_and_artifact")
@@ -612,7 +628,7 @@ def build_async_market_data_tool(
     return get_crypto_market_data
 
 
-def build_market_data_tool(client: CoinGeckoClient):  # noqa: ANN201
+def build_market_data_tool(client: CoinGeckoClient):
     """Wrap a legacy sync :class:`CoinGeckoClient` as a tool emitting Observation."""
 
     @tool(MARKET_TOOL_NAME, response_format="content_and_artifact")

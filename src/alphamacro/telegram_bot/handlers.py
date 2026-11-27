@@ -42,7 +42,7 @@ WELCOME_HTML = (
 
 ABOUT_HTML = (
     f"<b>AlphaMacro-Crypto</b> v{__version__}\n"
-    "Riset makroekonomi &amp; kripto berbasis AI"
+    "Riset makroekonomi &amp; kripto berbasis AI "
     "(router + agent + data CoinGecko &amp; web).\n\n"
     "<b>Privasi:</b> isi pesan Anda tidak disimpan oleh bot ini, tetapi diteruskan ke "
     "penyedia AI dan pencarian web (Tavily) untuk menghasilkan jawaban.\n\n"
@@ -304,7 +304,7 @@ class BotController:
                 self._send_markdown(chat_id, chunk)
                 self._sleep(0.5)  # stay under Telegram's per-chat flood limits
         except _TRANSIENT_NETWORK_ERRORS as exc:
-            logger.error(
+            logger.exception(
                 "Report could not be delivered: Telegram unreachable (%s). "
                 "Check your network/VPN/DNS.",
                 type(exc).__name__,

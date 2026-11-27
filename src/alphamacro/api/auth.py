@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import argparse
 import hashlib
 import hmac
 import secrets
@@ -38,7 +39,7 @@ def verify_key(provided: str | None, hashes: Mapping[str, str]) -> str | None:
 
 
 def keygen_main(argv: Sequence[str] | None = None) -> int:
-    import argparse
+
 
     parser = argparse.ArgumentParser(
         prog="alphamacro-keygen", description="Create an API key."

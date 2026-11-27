@@ -1,3 +1,5 @@
+import threading
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -83,7 +85,7 @@ def test_analyze_success_schema_and_identity():
     assert body["sources"] == [{"title": "A", "url": "https://a.com"}]
     assert body["compliance_flags"] == ["flag"]
     assert "bukan merupakan nasihat investasi" in body["disclaimer"]
-    query, kwargs = engine.calls[0]
+    _query, kwargs = engine.calls[0]
     assert kwargs["channel"] == "api" and kwargs["user_id"] == "acme"
     assert (
         response.headers["X-Request-ID"] == body["request_id"] == kwargs["request_id"]
@@ -157,7 +159,7 @@ def test_unexpected_exception_returns_generic_500():
 def test_concurrency_cap_returns_503():
     client, _ = make_client(concurrent=1)
     # Hold the only slot by running inside a blocked engine call.
-    import threading
+
 
     gate, entered = threading.Event(), threading.Event()
 

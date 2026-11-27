@@ -6,7 +6,7 @@ import asyncio
 import logging
 from typing import Any
 
-from pydantic import AwareDatetime
+from pydantic import AwareDatetime, ValidationError
 
 from alphamacro.audit import AuditLog
 from alphamacro.clock import SystemClock
@@ -26,6 +26,7 @@ from alphamacro.models import (
     CrossValidationReport,
     DeliveryReceipt,
     DigestSchedule,
+    JsonValue,
 )
 from alphamacro.ports import Clock
 from alphamacro.tools.coingecko import AsyncCoinGeckoClient
@@ -33,6 +34,10 @@ from alphamacro.tools.technical import async_fetch_snapshot
 from alphamacro.tools.venues import MultiVenueValidator
 
 logger = logging.getLogger(__name__)
+
+_RULES_CACHE_KEY = "scheduler:rules"
+_RULES_RETAIN_S = 86400 * 365
+_DIGEST_RETAIN_S = 86400 * 30
 
 
 def evaluate_alert_rule(
@@ -138,6 +143,7 @@ class ResearchScheduler:
         clock: Clock | None = None,
         audit: AuditLog | None = None,
         poll_interval_s: float = 60.0,
+        max_rules: int = 200,
     ) -> None:
         self._engine = engine
         self._market = market_client
@@ -148,6 +154,7 @@ class ResearchScheduler:
         self._clock: Clock = clock if clock is not None else SystemClock()
         self._audit = audit
         self._poll_interval_s = poll_interval_s
+        self._max_rules = max(1, max_rules)
 
         self._rules: dict[str, AlertRule] = {}
         self._digests: dict[str, DigestSchedule] = {}
@@ -159,6 +166,10 @@ class ResearchScheduler:
     # -- rule & digest management -----------------------------------------
 
     def upsert_rule(self, rule: AlertRule) -> AlertRule:
+        if rule.rule_id not in self._rules and len(self._rules) >= self._max_rules:
+            raise ValueError(
+                f"Maximum number of alert rules ({self._max_rules}) reached."
+            )
         self._rules[rule.rule_id] = rule
         return rule
 
@@ -167,6 +178,60 @@ class ResearchScheduler:
 
     def list_rules(self) -> list[AlertRule]:
         return list(self._rules.values())
+
+    async def _load_persisted_rules(self) -> dict[str, AlertRule]:
+        if self._state is None:
+            return dict(self._rules)
+        entry = await self._state.cache.get(_RULES_CACHE_KEY)
+        loaded: dict[str, AlertRule] = {}
+        if entry is not None and isinstance(entry.value, dict):
+            for rule_id, raw_rule in entry.value.items():
+                try:
+                    loaded[str(rule_id)] = AlertRule.model_validate(raw_rule)
+                except (ValidationError, TypeError, ValueError):
+                    logger.warning("Ignoring invalid persisted alert rule %r", rule_id)
+        loaded.update(self._rules)
+        return loaded
+
+    async def _save_persisted_rules(self, rules: dict[str, AlertRule]) -> None:
+        if self._state is None:
+            return
+        now = self._clock.now()
+        payload: dict[str, JsonValue] = {
+            rid: r.model_dump(mode="json") for rid, r in rules.items()
+        }
+        entry = CacheEntry(
+            key=_RULES_CACHE_KEY,
+            cache_class=CacheClass.DAILY_CHART,
+            value=payload,
+            fetched_at=now,
+            source="scheduler",
+        )
+        await self._state.cache.put(entry, retain_s=_RULES_RETAIN_S)
+
+    async def aupsert_rule(self, rule: AlertRule) -> AlertRule:
+        rules = await self._load_persisted_rules()
+        if rule.rule_id not in rules and len(rules) >= self._max_rules:
+            raise ValueError(
+                f"Maximum number of alert rules ({self._max_rules}) reached."
+            )
+        rules[rule.rule_id] = rule
+        self._rules[rule.rule_id] = rule
+        await self._save_persisted_rules(rules)
+        return rule
+
+    async def aremove_rule(self, rule_id: str) -> bool:
+        rules = await self._load_persisted_rules()
+        removed = rules.pop(rule_id, None) is not None
+        self._rules.pop(rule_id, None)
+        if removed:
+            await self._save_persisted_rules(rules)
+        return removed
+
+    async def alist_rules(self) -> list[AlertRule]:
+        rules = await self._load_persisted_rules()
+        self._rules = rules
+        return list(rules.values())
 
     def upsert_digest(self, schedule: DigestSchedule) -> DigestSchedule:
         self._digests[schedule.digest_id] = schedule
@@ -200,11 +265,44 @@ class ResearchScheduler:
             )
             await self._state.cache.put(entry, retain_s=rule.cooldown_s)
 
+    async def _is_digest_due(
+        self, schedule: DigestSchedule, now: AwareDatetime
+    ) -> bool:
+        now_epoch = now.timestamp()
+        last = self._last_digest_epoch.get(schedule.digest_id)
+        if last is not None and (now_epoch - last) < schedule.interval_s:
+            return False
+        if self._state is not None:
+            entry = await self._state.cache.get(f"digest:last:{schedule.digest_id}")
+            if entry is not None and entry.age_s(now) < schedule.interval_s:
+                self._last_digest_epoch[schedule.digest_id] = (
+                    entry.fetched_at.timestamp()
+                )
+                return False
+        return True
+
+    async def _mark_digest_ran(
+        self, schedule: DigestSchedule, now: AwareDatetime
+    ) -> None:
+        self._last_digest_epoch[schedule.digest_id] = now.timestamp()
+        if self._state is not None:
+            entry = CacheEntry(
+                key=f"digest:last:{schedule.digest_id}",
+                cache_class=CacheClass.DAILY_CHART,
+                value={"digest_id": schedule.digest_id, "ran_at": now.isoformat()},
+                fetched_at=now,
+                source="scheduler",
+            )
+            await self._state.cache.put(
+                entry, retain_s=max(schedule.interval_s, _DIGEST_RETAIN_S)
+            )
+
     # -- alert & digest execution -----------------------------------------
 
     async def run_alert_check(self, *, chat_id: str | None = None) -> list[AlertEvent]:
         """Evaluate all enabled rules once and deliver triggered alerts."""
-        active_rules = [r for r in self._rules.values() if r.enabled]
+        all_rules = await self.alist_rules()
+        active_rules = [r for r in all_rules if r.enabled]
         if not active_rules:
             return []
 
@@ -326,7 +424,7 @@ class ResearchScheduler:
                 user_id=f"digest:{schedule.digest_id}",
                 channel="scheduler",
             )
-            self._last_digest_epoch[schedule.digest_id] = now.timestamp()
+            await self._mark_digest_ran(schedule, now)
 
             target_chat = chat_id or self._chat_id
             if self._delivery is not None and target_chat:
@@ -341,12 +439,11 @@ class ResearchScheduler:
     async def tick_once(self) -> None:
         """Run one scheduler cycle: evaluate alerts + due digests."""
         await self.run_alert_check()
-        now_epoch = self._clock.now().timestamp()
+        now = self._clock.now()
         for schedule in list(self._digests.values()):
             if not schedule.enabled:
                 continue
-            last = self._last_digest_epoch.get(schedule.digest_id)
-            if last is None or (now_epoch - last) >= schedule.interval_s:
+            if await self._is_digest_due(schedule, now):
                 await self.run_digest(schedule)
 
     async def _loop(self) -> None:

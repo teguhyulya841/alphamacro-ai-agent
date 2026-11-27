@@ -237,7 +237,11 @@ class BotSettings(BaseSettings):
 
     model_config = SettingsConfigDict(extra="ignore", populate_by_name=True)
 
-    telegram_token: SecretStr
+    telegram_token: SecretStr = Field(
+        validation_alias=AliasChoices(
+            "telegram_token", "TELEGRAM_TOKEN", "TELEGRAM_BOT_TOKEN"
+        )
+    )
     allowed_user_ids: Annotated[
         frozenset[int],
         NoDecode,
@@ -290,6 +294,11 @@ class BotSettings(BaseSettings):
             raise ConfigurationError("TELEGRAM_TOKEN has an invalid format.")
         return cfg
 
+    def secrets(self) -> tuple[str, ...]:
+        """Plaintext secret values registered for log redaction filters."""
+        token = self.telegram_token.get_secret_value().strip()
+        return (token,) if token else ()
+
 
 class ApiSettings(BaseSettings):
     """REST API settings. Keys are stored only as SHA-256 hashes."""
@@ -312,7 +321,11 @@ class ApiSettings(BaseSettings):
     max_concurrent_requests: int = Field(
         default=4,
         ge=1,
-        validation_alias=AliasChoices("max_concurrent_requests", "API_MAX_CONCURRENT"),
+        validation_alias=AliasChoices(
+            "max_concurrent_requests",
+            "API_MAX_CONCURRENT",
+            "API_MAX_CONCURRENT_REQUESTS",
+        ),
     )
     host: str = Field(
         default="127.0.0.1",
@@ -366,8 +379,16 @@ class StateSettings(BaseSettings):
     )
 
     backend: StateBackend = StateBackend.SQLITE
-    sqlite_path: Path = Path("data/alphamacro.sqlite3")
-    redis_url: SecretStr | None = None
+    sqlite_path: Path = Field(
+        default=Path("data/alphamacro.sqlite3"),
+        validation_alias=AliasChoices(
+            "sqlite_path", "STATE_SQLITE_PATH", "SQLITE_PATH"
+        ),
+    )
+    redis_url: Annotated[SecretStr | None, BeforeValidator(_empty_to_none)] = Field(
+        default=None,
+        validation_alias=AliasChoices("redis_url", "STATE_REDIS_URL", "REDIS_URL"),
+    )
     key_prefix: str = "amc:v1:"
     degraded_mode: DegradedMode = DegradedMode.FAIL_OPEN
 
@@ -385,3 +406,65 @@ class StateSettings(BaseSettings):
             return cls()
         except ValidationError as exc:
             _raise_config_error(exc, {"redis_url": "STATE_REDIS_URL"})
+
+    def secrets(self) -> tuple[str, ...]:
+        """Plaintext secret values (e.g. Redis credentials) for log redaction."""
+        if self.redis_url is None:
+            return ()
+        raw = self.redis_url.get_secret_value().strip()
+        return (raw,) if raw else ()
+
+
+class WorkerSettings(BaseSettings):
+    """Background scheduler worker & outbound Telegram delivery settings."""
+
+    model_config = SettingsConfigDict(extra="ignore", populate_by_name=True)
+
+    telegram_token: Annotated[SecretStr | None, BeforeValidator(_empty_to_none)] = Field(  # noqa: E501
+        default=None,
+        validation_alias=AliasChoices(
+            "telegram_token", "TELEGRAM_BOT_TOKEN", "TELEGRAM_TOKEN"
+        ),
+    )
+    telegram_chat_id: Annotated[str | None, BeforeValidator(_empty_to_none)] = Field(
+        default=None,
+        validation_alias=AliasChoices("telegram_chat_id", "TELEGRAM_CHAT_ID"),
+    )
+    scheduler_poll_interval_s: float = Field(
+        default=60.0,
+        gt=0.0,
+        validation_alias=AliasChoices(
+            "scheduler_poll_interval_s", "SCHEDULER_POLL_INTERVAL_S"
+        ),
+    )
+    digest_query: Annotated[str | None, BeforeValidator(_empty_to_none)] = Field(
+        default=None,
+        validation_alias=AliasChoices("digest_query", "DIGEST_QUERY"),
+    )
+    digest_interval_s: int = Field(
+        default=86400,
+        ge=1,
+        validation_alias=AliasChoices("digest_interval_s", "DIGEST_INTERVAL_S"),
+    )
+
+    @classmethod
+    def from_env(cls, *, load_env: bool = True) -> WorkerSettings:
+        if load_env:
+            load_dotenv()
+        try:
+            return cls()
+        except ValidationError as exc:
+            _raise_config_error(
+                exc,
+                {
+                    "scheduler_poll_interval_s": "SCHEDULER_POLL_INTERVAL_S",
+                    "digest_interval_s": "DIGEST_INTERVAL_S",
+                },
+            )
+
+    def secrets(self) -> tuple[str, ...]:
+        """Plaintext secret values registered for log redaction filters."""
+        if self.telegram_token is None:
+            return ()
+        token = self.telegram_token.get_secret_value().strip()
+        return (token,) if token else ()

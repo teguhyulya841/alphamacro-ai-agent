@@ -88,7 +88,7 @@ def test_success_flow_sends_html_and_cleans_placeholder():
     ctrl.on_text(make_message())
     assert engine.calls == ["harga btc"]
     assert bot.deleted  # placeholder removed
-    report = [t for t in texts(bot) if "Ringkasan" in t][0]
+    report = next(t for t in texts(bot) if "Ringkasan" in t)
     assert "<b>Ringkasan</b>" in report
     assert any(kw.get("parse_mode") == "HTML" for _, _, kw in bot.sent)
     assert any("Sumber" in t for t in texts(bot))

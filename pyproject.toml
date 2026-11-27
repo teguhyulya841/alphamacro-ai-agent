@@ -7,7 +7,7 @@ name = "alphamacro-crypto"
 dynamic = ["version"]
 description = "Verifiable AI macro & crypto research: CLI, Telegram bot and REST API."
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.12"
 license = { text = "MIT" }
 authors = [{ name = "Your Name" }]
 keywords = ["crypto", "macroeconomics", "langchain", "gemini", "telegram-bot", "ai-agent"]
@@ -27,6 +27,7 @@ dependencies = [
     "pydantic>=2.7",
     "pydantic-settings>=2.2",
     "python-dotenv>=1.0",
+    "redis>=5.0",
     "requests>=2.31",
     "pyTelegramBotAPI>=4.14",
 ]
@@ -76,10 +77,13 @@ target-version = "py312"
 src = ["src", "tests"]
 
 [tool.ruff.lint]
-select = ["E", "F", "W", "I", "B", "UP", "S", "C4", "SIM"]
+select = [
+    "E", "F", "W", "I", "B", "UP", "S", "C4", "SIM",
+    "N", "ASYNC", "TRY300", "TRY400", "PLC0415", "PTH", "RUF", "DTZ", "PERF",
+]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**" = ["S101", "S105", "S106"]
+"tests/**" = ["S101", "S105", "S106", "PTH"]
 
 [tool.mypy]
 python_version = "3.12"

@@ -38,6 +38,7 @@ def test_ema_seeded_by_sma():
     out = ind.ema([1.0, 2.0, 3.0, 4.0, 5.0], 3)
     assert out[2] == pytest.approx(2.0)  # SMA seed
     assert out[3] == pytest.approx(0.5 * 4 + 0.5 * 2.0)  # alpha = 2/(3+1)
+    assert out[3] is not None
     assert out[4] == pytest.approx(0.5 * 5 + 0.5 * out[3])
 
 
@@ -51,6 +52,8 @@ def test_macd_constant_series_is_zero_and_histogram_consistent():
     assert line[-1] == pytest.approx(0.0)
     assert sig[-1] == pytest.approx(0.0)
     line, sig, hist = ind.macd([float(i) for i in range(100)])
+    assert line[-1] is not None
+    assert sig[-1] is not None
     assert line[-1] > 0
     assert hist[-1] == pytest.approx(line[-1] - sig[-1])
 

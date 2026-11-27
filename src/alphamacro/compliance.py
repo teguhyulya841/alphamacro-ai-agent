@@ -13,9 +13,9 @@ from dataclasses import dataclass, field
 from alphamacro.exceptions import PolicyViolationError
 
 BLOCKED_INPUT_MESSAGE = (
-    "Pesan Anda tampaknya berisi kunci rahasia (API key, private key, atau seed"
-    "phrase). Demi keamanan, pesan tidak diproses dan tidak dikirim ke penyedia AI."
-    "Hapus pesan itu dari chat dan jangan pernah membagikan kunci tersebut."
+    "Pesan Anda tampaknya berisi kunci rahasia (API key, private key, atau seed "
+    "phrase). Demi keamanan, pesan tidak diproses dan tidak dikirim ke penyedia AI. "
+    "Hapus pesan itu dari chat dan jangan pernah membagikan kunci tersebut. "
     "Jika sudah terlanjur terbuka, anggap kunci itu bocor dan ganti segera."
 )
 
@@ -116,7 +116,7 @@ def scan_input(query: str) -> InputScan:
         )
     if _INJECTION_RE.search(query):
         flags.append(
-            "Pola prompt-injection terdeteksi pada pertanyaan; diproses dengan"
+            "Pola prompt-injection terdeteksi pada pertanyaan; diproses dengan "
             "kewaspadaan."
         )
     return InputScan(redacted_query=redacted, flags=flags)

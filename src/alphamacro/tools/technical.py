@@ -152,7 +152,7 @@ def fetch_snapshot(
         raise MarketDataError(str(exc)) from exc
 
 
-def build_async_technical_tool(client: AsyncCoinGeckoClient):  # noqa: ANN201
+def build_async_technical_tool(client: AsyncCoinGeckoClient):
     """Wrap an :class:`AsyncCoinGeckoClient` as an async tool emitting Observation."""
 
     @tool(TECHNICAL_TOOL_NAME, response_format="content_and_artifact")
@@ -184,7 +184,7 @@ def build_async_technical_tool(client: AsyncCoinGeckoClient):  # noqa: ANN201
     return get_technical_indicators
 
 
-def build_technical_tool(client: CoinGeckoClient):  # noqa: ANN201
+def build_technical_tool(client: CoinGeckoClient):
     """Legacy synchronous technical-indicator tool emitting Observation."""
 
     @tool(TECHNICAL_TOOL_NAME, response_format="content_and_artifact")

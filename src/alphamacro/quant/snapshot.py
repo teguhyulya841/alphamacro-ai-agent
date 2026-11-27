@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import itertools
+import math
 from collections.abc import Sequence
 from datetime import UTC, datetime
 from typing import Any, Literal
@@ -37,7 +39,8 @@ def _recent_macd_cross(hist: Sequence[float | None], lookback: int = 3) -> str:
     tail = [h for h in hist[-(lookback + 1) :] if h is not None]
     if len(tail) < 2:
         return "N/A"
-    for prev, cur in zip(tail, tail[1:], strict=False):
+
+    for prev, cur in itertools.pairwise(tail):
         if prev <= 0 < cur:
             return f"bullish crossover dalam {lookback} candle terakhir"
         if prev >= 0 > cur:
@@ -69,6 +72,10 @@ def build_snapshot(
     if len(closes) < 30:
         raise ValueError(
             "Data harga tidak cukup (minimal 30 titik) untuk menghitung indikator."
+        )
+    if any(not math.isfinite(c) or c <= 0 for c in closes):
+        raise ValueError(
+            "Data harga mengandung nilai tidak valid (non-positif atau NaN/Inf)."
         )
     if timeframe not in PERIODS_PER_YEAR:
         raise ValueError(f"timeframe harus salah satu dari {sorted(PERIODS_PER_YEAR)}")
@@ -126,7 +133,8 @@ def build_snapshot(
         atr_value = _last(ind.atr(highs, lows, closes, 14))
         if atr_value is not None:
             snapshot["atr14"] = atr_value
-            snapshot["atr14_pct_of_price"] = atr_value / price * 100
+            if price > 0:
+                snapshot["atr14_pct_of_price"] = atr_value / price * 100
         swing_highs, swing_lows = ind.swing_points(highs, lows, window=3)
         support, resistance = ind.nearest_levels(price, swing_highs, swing_lows)
         snapshot["nearest_support"] = support
@@ -191,7 +199,7 @@ def format_snapshot(snapshot: dict[str, Any], retrieved_at: str) -> str:
         f"Middle: {_fmt_price(s['bollinger_middle'])} | "
         f"Lower: {_fmt_price(s['bollinger_lower'])}\n"
         f"Bollinger %B: {_fmt(s['percent_b'], 3)}\n"
-        f"ATR 14: {_fmt_price(s['atr14'])}"
+        f"ATR 14: {_fmt_price(s['atr14'])} "
         f"({_fmt(s['atr14_pct_of_price'])}% of price)\n"
         f"Nearest Swing Support: {_fmt_price(s['nearest_support'])}\n"
         f"Nearest Swing Resistance: {_fmt_price(s['nearest_resistance'])}\n"

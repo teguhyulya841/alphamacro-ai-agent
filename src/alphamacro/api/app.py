@@ -21,6 +21,7 @@ from fastapi import (
     Request,
     Response,
 )
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 from alphamacro import __version__
@@ -214,7 +215,7 @@ def create_app(
     )
 
     @app.middleware("http")
-    async def request_id_middleware(request: Request, call_next):  # noqa: ANN001, ANN202
+    async def request_id_middleware(request: Request, call_next):
         supplied = request.headers.get("x-request-id", "")
         request.state.request_id = (
             supplied if _REQUEST_ID_RE.match(supplied) else uuid.uuid4().hex[:16]
@@ -222,6 +223,8 @@ def create_app(
         response = await call_next(request)
         response.headers["X-Request-ID"] = request.state.request_id
         response.headers["Cache-Control"] = "no-store"
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
         return response
 
     async def authenticate(
@@ -248,7 +251,7 @@ def create_app(
             )
         return name
 
-    Caller = Annotated[str, Depends(authenticate)]
+    Caller = Annotated[str, Depends(authenticate)]  # noqa: N806
 
     @app.get("/healthz", tags=["ops"])
     async def healthz() -> dict[str, str]:
@@ -303,7 +306,7 @@ def create_app(
             except InvalidQueryError as exc:
                 raise _error(400, "invalid_query", str(exc), request_id) from exc
             except AgentExecutionError as exc:
-                logger.error("Analysis failed request_id=%s", request_id)
+                logger.exception("Analysis failed request_id=%s", request_id)
                 raise _error(
                     502,
                     "analysis_failed",
@@ -353,6 +356,9 @@ def create_app(
                 "Alert scheduler tidak aktif.",
                 request.state.request_id,
             )
+        alist = getattr(scheduler, "alist_rules", None)
+        if inspect.iscoroutinefunction(alist):
+            return await alist()
         return scheduler.list_rules()
 
     @app.post("/v1/alerts", response_model=AlertRule, tags=["alerts"])
@@ -366,11 +372,23 @@ def create_app(
                 "Alert scheduler tidak aktif.",
                 request.state.request_id,
             )
-        return scheduler.upsert_rule(rule)
+        try:
+            aupsert = getattr(scheduler, "aupsert_rule", None)
+            if inspect.iscoroutinefunction(aupsert):
+                return await aupsert(rule)
+            return scheduler.upsert_rule(rule)
+        except ValueError as exc:
+            raise _error(
+                400, "rule_limit_exceeded", str(exc), request.state.request_id
+            ) from exc
 
     @app.delete("/v1/alerts/{rule_id}", tags=["alerts"])
     async def delete_alert(
-        rule_id: str, request: Request, caller: Caller
+        rule_id: Annotated[
+            str, Path(min_length=1, max_length=64, pattern=r"^[A-Za-z0-9._-]+$")
+        ],
+        request: Request,
+        caller: Caller,
     ) -> dict[str, Any]:
         if scheduler is None:
             raise _error(
@@ -379,7 +397,12 @@ def create_app(
                 "Alert scheduler tidak aktif.",
                 request.state.request_id,
             )
-        removed = scheduler.remove_rule(rule_id)
+        aremove = getattr(scheduler, "aremove_rule", None)
+        removed = (
+            await aremove(rule_id)
+            if inspect.iscoroutinefunction(aremove)
+            else scheduler.remove_rule(rule_id)
+        )
         if not removed:
             raise _error(
                 404,
@@ -401,9 +424,7 @@ def create_app(
         return await scheduler.run_alert_check()
 
     @app.exception_handler(Exception)
-    async def unhandled(request: Request, exc: Exception) -> Response:  # noqa: ARG001
-        from fastapi.responses import JSONResponse
-
+    async def unhandled(request: Request, exc: Exception) -> Response:
         request_id = getattr(request.state, "request_id", None)
         logger.exception("Unhandled error request_id=%s", request_id)
         body = ErrorBody(

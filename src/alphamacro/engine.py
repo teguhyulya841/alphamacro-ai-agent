@@ -6,7 +6,6 @@ import asyncio
 import inspect
 import logging
 import random
-import re
 import time
 import uuid
 from collections.abc import Callable, Sequence
@@ -33,6 +32,7 @@ from alphamacro.grounding import (
     verify_numeric_grounding,
 )
 from alphamacro.infra.caching import DEFAULT_POLICIES, CachingFeed
+from alphamacro.infra.http import is_transient_error
 from alphamacro.infra.state import StateBundle, build_state
 from alphamacro.infra.sync_bridge import LoopThread
 from alphamacro.models import (
@@ -63,27 +63,6 @@ from alphamacro.tools.venues import MultiVenueValidator
 logger = logging.getLogger(__name__)
 
 AgentFactory = Callable[[str, str], Any]
-
-# Transient errors (overload, timeout, rate limit) that are safe to retry.
-_TRANSIENT_RE = re.compile(
-    r"\b(429|500|502|503|504)\b"
-    r"|UNAVAILABLE|DEADLINE_EXCEEDED|RESOURCE_EXHAUSTED|overloaded",
-    re.IGNORECASE,
-)
-
-
-def _is_transient(exc: BaseException) -> bool:
-    """Return True if the error (or any cause in its chain) is retryable."""
-    seen: set[int] = set()
-    cur: BaseException | None = exc
-    while cur is not None and id(cur) not in seen:
-        seen.add(id(cur))
-        if isinstance(cur, TimeoutError):
-            return True
-        if _TRANSIENT_RE.search(f"{type(cur).__name__}: {cur}"):
-            return True
-        cur = cur.__cause__ or cur.__context__
-    return False
 
 
 class AlphaMacroEngine:
@@ -162,9 +141,15 @@ class AlphaMacroEngine:
         self.market_client: AsyncCoinGeckoClient | None = None
         self.venue_validator: MultiVenueValidator | None = venue_validator
         self.tools = list(tools) if tools is not None else self._default_tools()
+        self._custom_agent_factory = agent_factory is not None
         self._agent_factory: AgentFactory = agent_factory or self._build_agent
         self.audit = audit if audit is not None else self._default_audit()
-        self._loop_thread = LoopThread(name="alphamacro-engine-loop")
+        self._loop_thread: LoopThread | None = None
+
+    def _get_loop_thread(self) -> LoopThread:
+        if self._loop_thread is None:
+            self._loop_thread = LoopThread(name="alphamacro-engine-loop")
+        return self._loop_thread
 
     # -- default wiring ---------------------------------------------------
 
@@ -256,14 +241,26 @@ class AlphaMacroEngine:
 
     def close(self) -> None:
         """Shut down owned async resources and the background event loop thread."""
+        has_async_clients = (
+            self.venue_validator is not None or self.market_client is not None
+        )
         try:
-            self._loop_thread.run(self.aclose(), timeout=5.0)
+            if self._loop_thread is not None:
+                self._loop_thread.run(self.aclose(), timeout=5.0)
+            elif has_async_clients:
+                bridge = LoopThread(name="alphamacro-engine-close")
+                try:
+                    bridge.run(self.aclose(), timeout=5.0)
+                finally:
+                    bridge.close()
         except Exception:
             logger.debug(
                 "Ignoring error during engine async resource close", exc_info=True
             )
         finally:
-            self._loop_thread.close()
+            if self._loop_thread is not None:
+                self._loop_thread.close()
+                self._loop_thread = None
 
     # -- public API -------------------------------------------------------
 
@@ -276,7 +273,7 @@ class AlphaMacroEngine:
         request_id: str | None = None,
     ) -> AgentResult:
         """Synchronous entry point delegating to the background asyncio loop."""
-        return self._loop_thread.run(
+        return self._get_loop_thread().run(
             self.arun(
                 query,
                 user_id=user_id,
@@ -308,7 +305,7 @@ class AlphaMacroEngine:
         try:
             result = await self._arun(query, request_id, started, event)
             event["status"] = "ok"
-            return result
+            return result  # noqa: TRY300
         except PolicyViolationError as exc:
             event.update(status="blocked", error_type=type(exc).__name__)
             raise
@@ -382,7 +379,11 @@ class AlphaMacroEngine:
                         request_id,
                     )
                     event["fallback_used"] = True
-                    agent = self._build_agent(category, now, llm=self.fallback_llm)
+                    agent = (
+                        self._agent_factory(category, now)
+                        if self._custom_agent_factory
+                        else self._build_agent(category, now, llm=self.fallback_llm)
+                    )
                 else:
                     agent = self._agent_factory(category, now)
                 return await asyncio.wait_for(
@@ -391,7 +392,7 @@ class AlphaMacroEngine:
             except Exception as exc:
                 last_exc = exc
                 event["agent_attempts"] = attempt
-                if not _is_transient(exc) or attempt == max_attempts:
+                if not is_transient_error(exc) or attempt == max_attempts:
                     break
                 jitter = random.uniform(0, 1)  # noqa: S311
                 delay = min(2**attempt, 20) + jitter
@@ -416,7 +417,7 @@ class AlphaMacroEngine:
             request_id,
             exc_info=last_exc,
         )
-        if _is_transient(last_exc):
+        if is_transient_error(last_exc):
             raise AgentExecutionError(
                 "Layanan model (Gemini) sedang sibuk atau timeout. "
                 "Coba lagi dalam beberapa menit."
@@ -452,41 +453,50 @@ class AlphaMacroEngine:
         if not report:
             raise AgentExecutionError("Agent tidak menghasilkan jawaban.")
 
-        tools_used, sources = inspect_tool_activity(messages)
-        observations = collect_observations(messages, now=now_dt)
-        cross_validations = [
-            obs.cross_validation
-            for obs in observations
-            if obs.cross_validation is not None
-        ]
-        cv_warnings = [w for cv in cross_validations for w in cv.warnings]
-        warnings = [
-            *build_quality_warnings(route.category, tools_used),
-            *build_staleness_warnings(observations),
-            *cv_warnings,
-        ]
+        try:
+            tools_used, sources = inspect_tool_activity(messages)
+            observations = collect_observations(messages, now=now_dt)
+            cross_validations = [
+                obs.cross_validation
+                for obs in observations
+                if obs.cross_validation is not None
+            ]
+            cv_warnings = [w for cv in cross_validations for w in cv.warnings]
+            warnings = [
+                *build_quality_warnings(route.category, tools_used),
+                *build_staleness_warnings(observations),
+                *cv_warnings,
+            ]
 
-        grounding = verify_numeric_grounding(
-            report,
-            collect_tool_outputs(messages),
-            observations=observations,
-        )
-        if (
-            grounding.score is not None
-            and grounding.score < self.settings.grounding_min_score
-        ):
-            warnings.append(
-                f"Hanya {grounding.verified} dari {grounding.total} angka dalam "
-                f"laporan yang cocok dengan data tool (skor {grounding.score:.0%}); "
-                "sisanya tidak dapat diverifikasi dan sebaiknya dicek ulang."
+            grounding = verify_numeric_grounding(
+                report,
+                collect_tool_outputs(messages),
+                observations=observations,
             )
-        confidence = assess_confidence(
-            grounding=grounding,
-            observations=observations,
-            cross_validations=cross_validations,
-            grounding_min_score=self.settings.grounding_min_score,
-        )
-        compliance_flags = [*scan.flags, *scan_output(report)]
+            if (
+                grounding.score is not None
+                and grounding.score < self.settings.grounding_min_score
+            ):
+                warnings.append(
+                    f"Hanya {grounding.verified} dari {grounding.total} angka dalam "
+                    f"laporan yang cocok dengan data tool (skor {grounding.score:.0%}); "  # noqa: E501
+                    "sisanya tidak dapat diverifikasi dan sebaiknya dicek ulang."
+                )
+            confidence = assess_confidence(
+                grounding=grounding,
+                observations=observations,
+                cross_validations=cross_validations,
+                grounding_min_score=self.settings.grounding_min_score,
+            )
+            compliance_flags = [*scan.flags, *scan_output(report)]
+        except (ValueError, TypeError) as exc:
+            logger.exception(
+                "Post-processing failed request_id=%s",
+                request_id,
+            )
+            raise AgentExecutionError(
+                "Gagal memverifikasi output laporan dari agent."
+            ) from exc
 
         for warning in warnings:
             logger.warning(warning)
