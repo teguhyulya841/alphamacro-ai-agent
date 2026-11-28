@@ -251,8 +251,6 @@ def create_app(
             )
         return name
 
-    Caller = Annotated[str, Depends(authenticate)]  # noqa: N806
-
     @app.get("/healthz", tags=["ops"])
     async def healthz() -> dict[str, str]:
         return {"status": "ok"}
@@ -272,7 +270,9 @@ def create_app(
         },
     )
     async def analyze(
-        body: AnalyzeRequest, request: Request, caller: Caller
+        body: AnalyzeRequest,
+        request: Request,
+        caller: Annotated[str, Depends(authenticate)],
     ) -> AnalyzeResponse:
         request_id = request.state.request_id
         if semaphore.locked():
@@ -318,7 +318,7 @@ def create_app(
     @app.get("/v1/indicators/{coin_id}", tags=["research"])
     async def indicators(
         request: Request,
-        caller: Caller,
+        caller: Annotated[str, Depends(authenticate)],
         coin_id: Annotated[str, Path(pattern=r"^[a-z0-9][a-z0-9\-]{0,63}$")],
         timeframe: Annotated[Literal["daily", "4h"], Query()] = "daily",
     ) -> dict[str, Any]:
@@ -348,7 +348,10 @@ def create_app(
         }
 
     @app.get("/v1/alerts", response_model=list[AlertRule], tags=["alerts"])
-    async def list_alerts(request: Request, caller: Caller) -> list[AlertRule]:
+    async def list_alerts(
+        request: Request,
+        caller: Annotated[str, Depends(authenticate)],
+    ) -> list[AlertRule]:
         if scheduler is None:
             raise _error(
                 503,
@@ -363,7 +366,9 @@ def create_app(
 
     @app.post("/v1/alerts", response_model=AlertRule, tags=["alerts"])
     async def upsert_alert(
-        rule: AlertRule, request: Request, caller: Caller
+        rule: AlertRule,
+        request: Request,
+        caller: Annotated[str, Depends(authenticate)],
     ) -> AlertRule:
         if scheduler is None:
             raise _error(
@@ -388,7 +393,7 @@ def create_app(
             str, Path(min_length=1, max_length=64, pattern=r"^[A-Za-z0-9._-]+$")
         ],
         request: Request,
-        caller: Caller,
+        caller: Annotated[str, Depends(authenticate)],
     ) -> dict[str, Any]:
         if scheduler is None:
             raise _error(
@@ -413,7 +418,10 @@ def create_app(
         return {"deleted": True, "rule_id": rule_id}
 
     @app.post("/v1/alerts/check", response_model=list[AlertEvent], tags=["alerts"])
-    async def trigger_alert_check(request: Request, caller: Caller) -> list[AlertEvent]:
+    async def trigger_alert_check(
+        request: Request,
+        caller: Annotated[str, Depends(authenticate)],
+    ) -> list[AlertEvent]:
         if scheduler is None:
             raise _error(
                 503,
